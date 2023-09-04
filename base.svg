@@ -1,0 +1,26 @@
+<svg id=""
+    xmlns="http://www.w3.org/2000/svg"> 
+<style>
+    @font-face {
+      font-family: "Sitka";
+      src: url("./fonts/sitka-small-599.ttf") format("truetype");
+    }
+    text {
+      font-family: "Sitka", sans-serif;
+      font-size: 18px;
+    }
+  </style>
+    <g  id="base" 
+        transform="rotate(-90)"
+        fill="transparent" 
+        stroke="black" 
+        stroke-width="2" 
+        stroke-linecap="round">
+    </g>
+</svg>
+
+
+
+
+
+

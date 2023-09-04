@@ -1,0 +1,12 @@
+node_modules/
+images/
+maps/
+.eslintrc
+.eslintrc.js
+GenerateMapLayers.old
+live-reload.sh
+package-lock.json
+package.json
+preview.sh
+reload.sh
+maps.bak

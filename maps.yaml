@@ -1,0 +1,119 @@
+#  - bright red: #FF4136
+#  - forest green: #2ECC40
+#  - bright yellow: #FFDC00
+#  - dark blue: 001F3F
+#  - dark gray: #AAAAAA
+#  degree symbol: °
+layers:
+  - id: base 
+    loc: 475 Brooktondale Road, Brooktondale NY 14817 
+    lat: 42,22,55 N 
+    lon: 76,23,52 W
+  - id: creek-road
+    parentid: base
+    magdecl: 0
+    instructions:
+      - step 1 n 64.5 w 500 links
+
+  - id: 1869-mag
+    parentid: base
+    date: 1869-05-22
+    citation: 22 May 1869, Jacob Vandemark, Charles W. Personius & Marcie E. his wife to William B. Wolcott, Caroline Deeds 1, p572, Tompkins County Clerk, Ithaca NY.
+    magdecl: -5,44 
+    instructions:
+      - step 1 n 70,38w 71 links
+      - step 2 s 81 e 1 chain 43 links
+      - step 3 n 9 e 4 chains 20 links
+      - reset 1 2
+      - revstep 5 n 70.23 w 3 chains 10 links
+      - connect 4 3 2 5 1
+
+
+  - id: 1869-mag
+    parentid: base
+    date: 1883-10-23 
+    citation: William B. Wolcott to Horace N Humiston Senior, Caroline Deeds 5, p70, Tompkins County Clerk, Ithaca NY.
+    magdecl: -6,52
+    instructions:
+      - step 1 s 71.37 e 82 links 
+      - step 2 n 9 e 63 links
+      - step 3 n 9 e 4 chains 20 links 
+      - reset 1 2
+      - revstep 5 n 71.37 w 4 chains 63 links
+      - connect 4 3 2 5 1
+
+  - id: dresser-mag 
+    title: 2023 Dresser Survey.
+    magdecl: -11,44 
+    instructions:
+      - addimage images/dresser.jpg 
+  - id: dresser-true
+    parentid: dresser-mag
+    magdecl: -12 
+files:
+  - filename: rect-test.svg
+    title: Test
+    scale: 4 
+    instructions:
+      #- layer dresser-mag
+      - layer creek-road
+      - grid major 100 feet 
+      - grid minor 10 feet
+      - layer rect-test
+      #- layer 1869-survey-mag
+        #- layer unit-test
+        #- align 3 2 rect-test 3 2 1869-survey-mag
+        #- layer text-test
+        #- align 2 2 1869-survey-mag 1 1 text-test
+
+
+
+
+
+        # 475-magnetic/compass-1869
+        # 475-magnetic/compass-1883-7dalt
+        # 475-magnetic/mag-1869-1883-7dalt
+        #475-magnetic/raceway-sw-drift
+        #475-magnetic/mag-1869-1883-dresser-7dalt
+        #475-magnetic/mag-1869-1883-miller-7dalt
+        #1869-only
+        #1869-overlaid-dresser
+        #1883-only
+        #1883-overlaid-dresser
+        #1869-1883
+        #235-85
+        #BF162361-001-map-565
+        #475-survey-scans/schlieder
+        #499-981
+        #499-981-triangle
+        #t3
+        #1869-1883-t3
+        #1869-1883-t3-overlaid-dresser
+        #1869-1883-t3-overlaid-schlieder
+        #1869-1883-t3-overlaid-miller
+        #1869-1883-t3-overlaid-dresser-cropped
+        #1869-1883-t3-overlaid-schlieder-cropped
+        #1869-1883-t3-overlaid-miller-cropped
+        #1869-overlaid-dresser
+        #1869-overlaid-miller
+        #1869-overlaid-schlieder
+        #1869-1883-alt-north
+        #1869-oip-dresser
+        #637-189
+        #point-d-diagram
+        #BF000660-001
+        #gpr/gpr-dresser
+        #gpr/gpr-1869-1883-mag-dresser
+        #gpr/gpr-1869-1883-mag-dresser-cropped
+        #gpr/gpr-1869-true-dresser
+        #gpr/gpr-1869-true-dresser-cropped
+        #gpr/gpr-1869-mag-dresser-cropped
+        #gpr/gpr-1869-true-dresser-cropped
+        #475-magnetic/compass-1883
+        #475-magnetic/mag-1883-only
+        #475-magnetic/mag-1869-1883-bc
+        #BF162361-001-map-565
+        #gpr/gpr-dresser
+
+
+
