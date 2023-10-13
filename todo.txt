@@ -1,0 +1,81 @@
+CURRENT TODO
+====================
+
+- [x] globals:
+    - [x] retro test existing, include files
+    - [x] define output formats
+
+- [x] property cascade
+    - [x] simple properties overwrite, enumerated properties append
+
+- [x] pretty bearings on steplabelformat output
+
+- [x] implement print scaling
+    - [x] output scale in metadata
+
+- [x] svg file must be created at least
+
+- [x] how is scale determined now? 
+    - [x] move-and-rotate method also scales?
+    - [x] Max bounding box = printscale + margin 
+    - [x] scale layers after all layers are compiled
+    - [x] align after scaling
+    - [x] default scale =0, only set it scale=0, otherwise, assume value set overrides
+    - [x] add dpi to savepng code
+
+- [-] implement points, point types
+    - [x] describe methods
+    - [x] methods to connect, align, etc.
+
+- [ ] finish map definitions
+    - [x] final Tract III config
+    - [x] adjust label placement
+    - [x] rules
+
+- [ ] metadata, context improvements
+    - [ ] line/text styling cleanup, test (at group/layer level)
+    - [x] line color legend
+    - [ ] metadata title, border color
+    - [ ] title, desc, notes  at layer and file levels
+
+- [ ] initial Hugo site setup for DeedMapify
+- [ ] create shortcode ? 
+- [x] make grids gray again
+- [x] rule lines go in one direction like lines (rules go through points only?, open(one point, dist,angle) closed (2 points), rules get numbered like steps)
+- [x] config file recursively includes?
+
+Known Bugs
+==========
+
+- [x] true north map is not showing right angles? (isolate and add debugging messages) 
+
+Future Enhancements
+====================
+
+- [ ] add "chainlinks" as input and output format, test 
+- [ ] test: notes, citations, and instructions append to list
+- [ ] chainlinks as a unit 
+- [ ] splitwords should use one **or more** spaces as delimiters for more robust parsing
+- [ ] copy point method? 
+- [ ] global config
+    - [ ] implement template files 
+    - [ ] specify output, images, template dir, etc? 
+    - [ ] display flags? files/layers append or override? (default overrides, add addflags param at file level to append or use +flag -flag notation?)
+    
+- [ ] geocode physical addresses
+- [ ] lookup magnetic declination for lat/lon/date
+- [ ] cache results
+
+
+- [ ] PDF output
+
+Infrastructure Enhancements
+========================
+
+- [ ] likely "compile" code in SVGHelper that more logically belongs in the MapLayer package
+- [ ] factor out general utility functions from MapMath package
+- [ ] integrate Winston logging, clean up logging messages
+- [ ] validate yaml, give feedback      
+- [ ] more robust error checking/validation in general
+- [ ] consider using TypeScript on MapMath package
+- [x] clean up unused image files in maps/images

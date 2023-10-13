@@ -1,4 +1,4 @@
-
+    
 const fs = require("fs");
 const path = require("path");
 const { parseSync, stringify } = require("svgson");
@@ -8,6 +8,10 @@ const MapMath = require("./MapMath");
 const splitwords = MapMath.splitwords;
 const logall = MapMath.logall;
 
+function SaveSVGJSON (svg, svgfile, dir) {
+    FileHelper.SaveText(stringify(svg), svgfile, dir); 
+    return;
+}
 
 function GetSVGJSON (svgfile, dir) {
     let svgtext = FileHelper.GetText(svgfile, dir);
@@ -18,23 +22,65 @@ function CreateSVGElement() {
     return { 
         name:    "svg", 
         type:    "element",
-        attributes: {},
+        attributes: {
+            xmlns:          "http://www.w3.org/2000/svg", 
+            "xmlns:xlink":  "http://www.w3.org/1999/xlink"
+        },
         children: []
         };
 }
 
 
-function CreateSVGBaseGroup (scale=1) {
-    let basegroup = CreateGroupElement("base", 0, scale);
-    basegroup.attributes["stroke-linecap"] = "round"; 
-    return basegroup;
+// set aside, rotate, offsets for now, because we don't typically know final scale until later,
+// at which point, we will update the transform, using these values and scale,
+// in the order of operations: scale, rotate, translate
+function CreateGroupElement(id, color="black", rotate=0, xoffset=0, yoffset=0, margin=0, linewidth=2, fontsize=6, font="Roboto, sans-serif", fontweight="bold") {
+    //let transform = `rotate(${rotate}) translate(${xoffset} ${yoffset})`;
+    let g = { 
+        rotate: rotate,
+        xoffset: xoffset,
+        yoffset: yoffset,
+        name:    "g", 
+        type:    "element",
+        attributes: { 
+            id:                     id, 
+            stroke:                 color,
+            fill:                   color,
+            "stroke-width":         linewidth,
+            "stroke-linecap":       "round",
+            "font-family":          font, 
+            "font-size":            fontsize , 
+            "font-weight":          fontweight, 
+        },
+        children: [],
+    }
+    return g;
 }
 
-
-function SaveSVGJSON (svg, svgfile, dir) {
-    FileHelper.SaveText(stringify(svg), svgfile, dir); 
-    return;
+function CreateTextElement (label, x, y, dx=4, dy=4, relangle=0, fontsize=6, textanchor="middle", dombaseline="middle") {
+    label = label.toString();
+    fontsize = parseFloat(fontsize);
+    let charwidth = 0.1 * fontsize;
+    let textLength = calculateRotatedTextLength(label, fontsize, parseFloat(relangle), parseFloat(charwidth));
+    x = parseFloat(x); y = parseFloat(y); dx = parseFloat(dx); dy = parseFloat(dy);
+    return  { 
+        name: "text", 
+        type: "element", 
+        attributes: {
+            x: MapMath.rounddown(x + dx),
+            y: MapMath.rounddown(y + dy),
+            textLength: textLength, 
+            transform: "rotate(" + relangle + " " + x + " " + y + ")",
+            stroke: "transparent",
+            "stroke-width": 0,
+            "font-size": fontsize,
+            "text-anchor":  textanchor,
+            "dominant-baseline": dombaseline,
+        },
+        children: [{type: "text", value: label.toUpperCase()}],
+    }
 }
+
 
 /*
 function FindBaseGroup(svg) {
@@ -74,6 +120,7 @@ function CreateCircleElement(x, y, r) {
             cx: x, 
             cy: y, 
             r: r,
+            fill: "transparent",
         }
     }
 }
@@ -101,14 +148,14 @@ function CreateLineElement(x1, y1, x2, y2) {
     }
 }
 
-function CreateRulePathElement(x1, y1, x2, y2, linewidth=1, dash="none") {
+function CreateRulePathElement (x1, y1, x2, y2, linewidth=1, dash="none") {
     let pathelement = CreatePathElement(x1, y1, x2, y2);
     pathelement.attributes["stroke-width"] = linewidth; 
     pathelement.attributes["stroke-dasharray"] = dash; 
     return pathelement;
 }
 
-function calculateRotatedTextLength(text, fontsize=6, rotatedegrees = 0, characterWidth = 0.6) {
+function calculateRotatedTextLength (text, fontsize=6, rotatedegrees = 0, characterWidth = 0.6) {
     const numchars = text.length;
     const rotateradians = MapMath.degstorads(rotatedegrees);  
     const width = Math.abs(Math.cos(rotateradians)) * fontsize * numchars * 0.6;
@@ -116,37 +163,10 @@ function calculateRotatedTextLength(text, fontsize=6, rotatedegrees = 0, charact
 }
 
 
-function CreateTextElement(label, x, y, dx=4, dy=4, relangle=0, forecolor="black", fontsize=6, textanchor="middle", charwidth=0.6) {
-    let textLength = calculateRotatedTextLength(label, parseFloat(fontsize), parseFloat(relangle), parseFloat(charwidth));
-    x = parseFloat(x); y = parseFloat(y); dx = parseFloat(dx); dy = parseFloat(dy);
-    x = x;
-    y = y;
-    return  { 
-        name: "text", 
-        type: "element", 
-        attributes: {
-            lineangle: relangle,
-            // transform: "translate(" + x + "," + y + ") rotate(" + relangle + ")",
-            x: x + dx,
-            y: y + dy,
-            textLength: textLength, 
-            transform: "rotate(" + relangle + " " + x + " " + y + ")",
-            fill: forecolor,
-            stroke: "transparent",
-            "stroke-width": 0,
-            "font-family": "Roboto, sans-serif",
-            "font-size": fontsize , 
-            "text-anchor":  textanchor,
-            "dominant-baseline":   "mathematical",
-        },
-        children: [{type: "text", value: label.toUpperCase()}],
-    }
-}
-
 // all images are centered initially on 0,0
-// image should be rotated 90 by default to account for -90
-// rotation of drawing objects so drawn angles match compass bearings
-function CreateImageElement(image, rotate) {
+function CreateImageElement(image, rotate=0) {
+    let style = "";
+    if (image.hide) { style = "display:none"; }
     if (image.width == 0 || image.height == 0) {
         [image.width, image.height] = GetImageDimensions(image.href);
     }
@@ -156,12 +176,14 @@ function CreateImageElement(image, rotate) {
         name: "image", 
         type: "element",
         attributes: {
+            "xlink:href": image.href, 
             href: image.href, 
             x: x,
             y: y,
             width: image.width,
             height: image.height,
             transform: "rotate(" + rotate + ")",
+            style: style
         }
     };
 }
@@ -199,70 +221,31 @@ function rotateBoundingBox(LayerState, angle = -90) {
 */
 
 
-function CreateGroupElement(id, rotate=0, scale=1, xoffset=0, yoffset=0, margin=0, forecolor="black", linewidth=2, backcolor="transparent") {
-    let transform = "rotate(0) translate(" + xoffset + " " + yoffset + ")";
-    if (scale) { transform += " scale(" + scale + ")"; }  
-    let g = { 
-        name:    "g", 
-        type:    "element",
-        rotate:  rotate,
-        xoffset: xoffset,
-        yoffset: yoffset,
-        scale:   scale,
-        margin:  margin, 
-        attributes: { 
-            id:                     id, 
-            transform:              transform,  
-            fill:                   backcolor,
-            stroke:                 forecolor,
-            "stroke-width":         linewidth,
-        },
-        children: [],
-    }
-    return g;
-}
-
 function ScaleElementsBoundingBox(LayerState, baserotate=0) {
-    console.log(" ");
-    console.log("   *** Layer ID: %s, xoffset: %s, yoffset: %s", LayerState.id, LayerState.xoffset, LayerState.yoffset);
     // add a default layer margin
-    const margin = 12;
-    LayerState.minx -= margin;
-    LayerState.miny -= margin;
-    LayerState.maxx += margin;
-    LayerState.maxy += margin;
+    LayerState.minx -= LayerState.margin;
+    LayerState.miny -= LayerState.margin;
+    LayerState.maxx += LayerState.margin;
+    LayerState.maxy += LayerState.margin;
 
     // rotate
     const rotate = (LayerState.rotate) ? parseFloat(LayerState.rotate) : 0;
     LayerState = MapMath.RotateBoundingBox(LayerState, baserotate + rotate);
 
     // offset 
-    const xoffset = (LayerState.xoffset) ? parseFloat(LayerState.xoffset) : 0;
-    const yoffset = (LayerState.yoffset) ? parseFloat(LayerState.yoffset) : 0;
+    let xoffset = (LayerState.xoffset) ? parseFloat(LayerState.xoffset) : 0;
+    let yoffset = (LayerState.yoffset) ? parseFloat(LayerState.yoffset) : 0;
+
     LayerState.minx += xoffset;
     LayerState.miny += yoffset;
     LayerState.maxx += xoffset;
     LayerState.maxy += yoffset;
     
-    // scale
-    // invert scale for images to counteract drawing scale
-    // and bring image scale back to 1
-    let scale = (LayerState.scale) ? parseFloat(LayerState.scale) : 1;
+    LayerState.minx = MapMath.rounddown(LayerState.minx * LayerState.scale);
+    LayerState.miny = MapMath.rounddown(LayerState.miny * LayerState.scale);
+    LayerState.maxx = MapMath.rounddown(LayerState.maxx * LayerState.scale);
+    LayerState.maxy = MapMath.rounddown(LayerState.maxy * LayerState.scale);
 
-    if (LayerState.images && LayerState.images.length) { 
-        let transformscale = 1 / scale;
-        scale = 1;
-        LayerState.scale = scale; 
-        if (LayerState.svg.attributes.transform) {
-            LayerState.svg.attributes.transform += " scale(" + transformscale + ")";
-        } else {
-            LayerState.svg.attributes.transform =  " scale(" + transformscale + ")";
-        }
-    } 
-    LayerState.minx = LayerState.minx * scale;
-    LayerState.miny = LayerState.miny * scale;
-    LayerState.maxx = LayerState.maxx * scale;
-    LayerState.maxy = LayerState.maxy * scale;
     
     // Return the maximum width and height as an object
     return LayerState;
@@ -395,7 +378,7 @@ function GetElementsBoundingBox(LayerState) {
     return LayerState;
 }
 
-function getCircleLabelOffsets(LayerState, thisstep, space) {
+function getEndCircleLabelOffsets(LayerState, thisstep, space) {
     let stepnum = parseInt(thisstep.num);
     let stepindex = stepnum -1;
     let nextstep = {};
@@ -408,99 +391,219 @@ function getCircleLabelOffsets(LayerState, thisstep, space) {
     return MapMath.GetFuzzyLabelOffset(thisstep.lineangle, nextstep.lineangle, space);
 }
 
+/*
+function collectStepPoints(LayerState) {
+    let pointaccum = [];
+    for (let s=0; s < LayerState.steps.length; s ++) {
+        pointaccum.push(LayerState.steps[s].points[1]);
+    }
+    return pointaccum;
+}
+*/ 
 
+function GetCompassGroup(compass) {
+    // svg translate uses upper left of polygon as reference point,
+    // I want to coerce this to use the center instead
+    // size is length of side of square bounding box of polygon
+    let x = (compass.x) ? parseFloat(compass.x) : 0;
+    let y = (compass.y) ? -parseFloat(compass.y) : 0;
+
+    const color = (compass.color) ? compass.color : "#000000";
+    const size = (compass.size) ? parseFloat(compass.size) : 50;
+    const rotate = (compass.rotate) ? parseFloat(compass.rotate) : 0;
+
+    const goldenratio = .6;
+    const invgoldenratio = .4;
+
+    const half = MapMath.rounddown(size * .5);
+    const golden = MapMath.rounddown(size * goldenratio);
+    const invgolden = MapMath.rounddown(size * invgoldenratio);
+
+    x = MapMath.rounddown(x - half);
+    y = MapMath.rounddown(y - half);
+    const Nfontsize = MapMath.rounddown(size * goldenratio * invgoldenratio);
+    const Ntexty = MapMath.rounddown(invgolden + (Nfontsize * invgoldenratio)); // font height adjustment
+
+    /*
+    let areaText = "" ;
+    console.log(compass);
+    if (compass.areaSquareFeet > 0) {
+        let areax = MapMath.rounddown(x + half) ;
+        let lineheight = (1 + goldenratio);
+        let areay = MapMath.rounddown(y + half );
+        let acres = MapMath.squareFeetToAcres(compass.areaSquareFeet);
+        console.log("areax: %s, areay: %s, lineheight: %s", areax, areay, lineheight);
+        areaText = `<text x="${areax}" y="${areay}" 
+                          font-family="Roboto, sans-serif" font-size="${compass.fontsize}" font-weight="bold" 
+                          fill="${color}" stroke-width="0" stroke="transparent"
+                          text-anchor="start" dominant-baseline="auto"
+                          transform="rotate(${rotate}) translate(${areax})"> 
+                    <tspan x="${areax}" dy="${lineheight}em">AREA: </tspan> 
+                    <tspan x="${areax}" dy="${lineheight}em">${acres.toLocaleString()} ACRES </tspan> 
+                    <tspan x="${areax}" dy="${lineheight}em">(${compass.areaSquareFeet.toLocaleString()} SQ FT)</tspan> 
+                    </text>`;
+    }
+    */
+
+    const compassgroup = `<svg><g id="compass">
+                            <polygon points="${half},0 ${size},${size} ${half},${golden} 0,${size}" 
+                                     fill="${color}" stroke-width="0" stroke="transparent" 
+                                     transform="rotate(${rotate}) translate(${x},${y})"/>
+                            <text x="${half}" y="${Ntexty}" 
+                                  font-family="Roboto, sans-serif" font-size="${Nfontsize}" font-weight="bold" 
+                                  fill="white" stroke-width="0" stroke="transparent"
+                                  text-anchor="middle" dominant-baseline="middle" 
+                                  transform="rotate(${rotate}) translate(${x},${y})"> N </text>
+                        </g></svg>`;
+    const compassobject = parseSync(compassgroup);
+    return compassobject.children[0];
+
+}
+
+// dx and dy are applied to labels and are relative to the defaults
 function GenerateSVG (LayerState) {
-    // setting scale to 0 tells function not to set scale at all 
-    // create group for this layer  
-    let layergroup = CreateGroupElement(LayerState.id, LayerState.rotate,
-                                    1, LayerState.xoffset, LayerState.yoffset, 
-                                    parseFloat(LayerState.linewidth) * 10,
-                                    LayerState.forecolor, LayerState.linewidth, LayerState.backcolor);
+    let layergroup = CreateGroupElement(LayerState.id, LayerState.color, 0,
+                                    LayerState.xoffset, LayerState.yoffset, 
+                                    parseFloat(LayerState.margin),
+                                    LayerState.linewidth);
     
+                                    //parseFloat(LayerState.margin) * 10,
     // add all images
     if (LayerState.images && LayerState.images.length) {
         for (let i = 0; i < LayerState.images.length; i++) {
             let img = LayerState.images[i];
-            layergroup.children.push(CreateImageElement(img, LayerState.rotate));
+            //layergroup.children.push(CreateImageElement(img, LayerState.rotate + LayerState.magdecl));
+            layergroup.children.push(CreateImageElement(img)); 
         }
     }
 
     if (LayerState.steps && LayerState.steps.length) {
-        let r = parseFloat(LayerState.linewidth) * 2; 
-        let fontsize = parseFloat(LayerState.fontsize);
-        let labelpadding = r * 2;
-        let dx = (LayerState.steps[0].points[0].dx) ? parseFloat(LayerState.steps[0].points[0].dx) : 0;
-        let dy = (LayerState.steps[0].points[0].dy) ? parseFloat(LayerState.steps[0].points[0].dy) : labelpadding + fontsize;
-        logall({dx},{dy},{r},{labelpadding});
+        const fontsize = parseFloat(LayerState.fontsize);
+        const vertfontadj = fontsize / 2;
+        const linewidth = parseFloat(LayerState.linewidth);
+        const r = linewidth * 2; 
+        const circlelabelpadding = r * 2;
+        const linelabelpadding = linewidth;
+
+        let labeldx = (LayerState.steps[0].points[0].dx) ? parseFloat(LayerState.steps[0].points[0].dx) : 0;
+        let labeldy = (LayerState.steps[0].points[0].dy) ? parseFloat(LayerState.steps[0].points[0].dy) : 0; 
+        let [cx, cy] = [LayerState.steps[0].points[0].x, LayerState.steps[0].points[0].y] ;
+        let [labelx, labely] = [cx, MapMath.rounddown(cy + (vertfontadj + circlelabelpadding + linewidth))]
+        console.log("first circle, labelx: %s, labely: %s", labelx, labely);
 
         // circle drawing starting point 
         if (! LayerState.displayflags.includes("nosteppoints") && LayerState.steps[0]) {
-            let [cx, cy] = [LayerState.steps[0].points[0].x, LayerState.steps[0].points[0].y] ;
             layergroup.children.push(CreateCircleElement(cx, cy, r));
-            let labelpoint = getCircleLabelOffsets(LayerState, LayerState.steps[0], labelpadding); 
-            layergroup.children.push(CreateTextElement(LayerState.steps[0].points[0].label, 
-                                cx, cy, dx, dy, 0, LayerState.forecolor, fontsize));
+            let startlabel = LayerState.steps[0].points[0].label;
+            if (LayerState.displayflags.includes("showpointcoords")) { 
+                let icy = cy;
+                if (icy != 0) { icy = -icy; } // inverted Y axis
+                startlabel = startlabel + "(" + cx + "," + icy + ")"; 
+            }
+            layergroup.children.push(CreateTextElement(startlabel, labelx, labely, labeldx, labeldy, 0,));
         }
        
         // create steps (line and endpoint)
         for (let i = 0; i < LayerState.steps.length; i++) {
-            // reset values
-            r = parseFloat(LayerState.linewidth) * 2; 
-            fontsize = parseFloat(LayerState.fontsize);
-            labelpadding = r + 2;
+console.log(i);
+            // LINE
             let [x1, y1] = [ LayerState.steps[i].points[0].x, LayerState.steps[i].points[0].y];
             let [x2, y2] = [ LayerState.steps[i].points[1].x, LayerState.steps[i].points[1].y];
             let [x3, y3] = [ LayerState.steps[i].points[2].x, LayerState.steps[i].points[2].y];
-           
-            // LINE
             layergroup.children.push(CreatePathElement(x1, y1, x2, y2));
             
-            // LINE LABEL
-            let [x, y] = [x3, y3];
-            dx = (LayerState.steps[i].dx) ? LayerState.steps[i].dx : 0;
-            dy = (LayerState.steps[i].dy) ? LayerState.steps[i].dy : 0;
+            // LINE LABEL (at 90 degrees of line mid-point)
             let lineangle = parseFloat(LayerState.steps[i].lineangle);
             let textangle = -lineangle; 
-            let textlength = parseFloat(LayerState.steps[i].linelength);
-
-            // minor adjustments to flip rotated text and slight line adjustments for edge cases 
             if (lineangle > 90 && lineangle < 270) { textangle = MapMath.GetBackAngle(textangle); }
-            //if (lineangle == 90 ) { dx -= r; }
-            //if (lineangle == 270) { dx += r; }
+            let textlength = parseFloat(LayerState.steps[i].linelength);
+            let temppoint = MapMath.GetEndPoint(x3, y3, textangle - 90, vertfontadj + linelabelpadding);
+            console.log(temppoint);
+            labelx = temppoint.x; labely = temppoint.y;
+            
+            // line label spacing adjustments
+            labeldx = (LayerState.steps[i].dx) ? parseFloat(LayerState.steps[i].dx) : 0;
+            labeldy = (LayerState.steps[i].dy) ? parseFloat(LayerState.steps[i].dy) : 0;
+            //if ((lineangle =< 45 || lineangle > 315) { labeldy += (vertfontadj + linelabelpadding); } 
+            //if (lineangle > 45 || lineangle <= 135) { labeldx += r * 2; } 
+            //if ((lineangle > 135 || lineangle <= 225) { labeldy -= (vertfontadj + linelabelpadding); } 
+            //if ((lineangle > 225 || lineangle <= 315) { labeldx -= linelabelpadding; } 
 
             if (LayerState.steps[i].label.length < 2) { textangle = 0; } 
-            ({x, y} = MapMath.GetEndPoint(x, y, textangle - 90, r));
-            layergroup.children.push(CreateTextElement(LayerState.steps[i].label, x, y, dx, dy, textangle, LayerState.forecolor, fontsize));
+            if (! LayerState.displayflags.includes("nosteplabels")) {
+                layergroup.children.push(CreateTextElement(LayerState.steps[i].label, labelx, labely, labeldx, labeldy, textangle));
+            }
             
+            // MIDPOINT
+            //layergroup.children.push(CreateCircleElement(x3, y3, r));
+
             // ENDPOINT CIRCLE AND LABEL
-            dx = (LayerState.steps[i].points[1].dx) ? parseFloat(LayerState.steps[i].points[1].dx) : 0;
-            dy = (LayerState.steps[i].points[1].dy) ? parseFloat(LayerState.steps[i].points[1].dy) : 0;
             textangle = 0;
             if (! LayerState.displayflags.includes("nosteppoints")) {
                 // is this the endpoint of the first step? If so, increase circle size, and label spacing as this should be the "Place of Beginning"
-                fontsize = LayerState.fontsize; 
-                if (i==0) { 
-                    r = r * 2; 
-                    labelpadding = r + (LayerState.linewidth * 2 *2) ; 
-                    fontsize = fontsize * 2; 
-                }
+                let finalr = r; let finalfontsize = fontsize;
+                if (i==0) { finalr *= 2; finalfontsize *= 2; }
 
-                layergroup.children.push(CreateCircleElement(x2, y2, r));
-                let circlelabel = LayerState.steps[i].points[1].label;
-                let labelpoint = getCircleLabelOffsets(LayerState, LayerState.steps[i], labelpadding); 
-                logall({lineangle},{circlelabel},{r},{labelpadding});
-                // account for height of font in positive y adjustment
-                if (labelpoint.y > 0) { labelpoint.y = labelpoint.y + LayerState.fontsize ; }
-                layergroup.children.push(CreateTextElement(circlelabel, x2, y2, labelpoint.x, labelpoint.y, textangle, LayerState.forecolor, fontsize));
+                let circlelabel = LayerState.steps[i].points[1].label || "";
+
+                let baseoffset = getEndCircleLabelOffsets(LayerState, LayerState.steps[i], finalr + r); 
+                if (i==0) { baseoffset.x = 0; }
+                labeldx = (LayerState.steps[i].points[1].dx) ? baseoffset.x + parseFloat(LayerState.steps[i].points[1].dx) : baseoffset.x;
+                labeldy = (LayerState.steps[i].points[1].dy) ? baseoffset.y + parseFloat(LayerState.steps[i].points[1].dy) : baseoffset.y;
+
+                layergroup.children.push(CreateCircleElement(x2, y2, finalr));
+                if (! (circlelabel.toUpperCase() == "POB")) {
+                    if (LayerState.displayflags.includes("showpointcoords")) { 
+                        let iy2 = y2;
+                        if (iy2 != 0) { iy2 = -iy2; } // inverted y axis
+                        circlelabel = circlelabel + "(" + x2 + "," + iy2 + ")"; 
+                    }
+                } 
+                layergroup.children.push(CreateTextElement(circlelabel, x2, y2, labeldx, labeldy, textangle, finalfontsize));
+                console.log("endcircle label: labelx: %s, labely: %s", labelx, labely);
             }
         }
     }
 
     let rules = compileRules(LayerState);
-    if (rules) { layergroup.children.push(rules); }
+    if (rules && rules.length > 0) { layergroup.children.push(rules); }
+    let points = compilePoints(LayerState);
+    if (points && points.length > 0) { layergroup.children.push(points); }
+
+    LayerState.area = MapMath.calculatePolygonArea(LayerState.steps);
+    if (LayerState.compass) { 
+        // if compass location is not explicitly set, use estimated polygon center
+        if (LayerState.compass.x == 0 && LayerState.compass.y == 0) {
+            let areaCenterPoint = MapMath.getPolygonCartCenterPoint(LayerState.steps);
+            LayerState.compass.x = areaCenterPoint.x;
+            LayerState.compass.y = areaCenterPoint.y;
+        }
+        let compass = GetCompassGroup(LayerState.compass); 
+        layergroup.children.push(compass); 
+    } 
     LayerState.svg = layergroup; 
     return LayerState;
 }
+
+/*
+function ConverttoSVG (LayerState) {
+    for (let s=0; s < LayerState.steps.length; s++) {
+        LayerState.steps[s].lineangle = MapMath.AzimuthtoSVG(LayerState.steps[s].lineangle);
+        LayerState.steps[s].blineangle = MapMath.AzimuthtoSVG(LayerState.steps[s].blineangle);
+        for (let sp=0; sp < LayerState.steps[s].points.length; sp++) {
+            LayerState.steps[s].points[sp] = MapMath.CartCoordstoSVGCoords(LayerState.steps[s].points[sp]);
+        }
+    }
+    for (let r=0; r < LayerState.rules.length; r++) {
+        LayerState.rules[r].lineangle = MapMath.AzimuthtoSVG(LayerState.rules[r].lineangle);
+        LayerState.rules[r].blineangle = MapMath.AzimuthtoSVG(LayerState.rules[r].blineangle);
+        for (let rp=0; rp < LayerState.rules[r].points.length; rp++) {
+            LayerState.rules[r].points[rp] = MapMath.CartCoordstoSVGCoords(LayerState.rules[r].points[rp]);
+        }
+    }
+    return LayerState;
+}
+*/
 
 /*
  * original functions that are not cross-layer aware
@@ -509,17 +612,13 @@ function DrawRightAngleSign(angle1, angle2, intersectionpoint, space=8) {
     // put this symbol past the point circle and calculate hypotenuse
     let sidedist = parseFloat(space); 
     let aveangle = MapMath.GetInsideAverageAngle(parseFloat(angle1), parseFloat(angle2));
-    console.log(" Got these to draw: angela: %s, angle2: %s, aveangle: %s", angle1, angle2, aveangle);
     [vertexx, vertexy] = [parseFloat(intersectionpoint.x), parseFloat(intersectionpoint.y)];
-    console.log(" Got these to draw: intersectionpoint.x: %s, intersectionpoint.y: %s, ", parseFloat(intersectionpoint.x), parseFloat(intersectionpoint.y));
     let {avex, avey} = MapMath.GetEndPoint(vertexx, vertexy, aveangle, Math.sqrt( Math.pow(sidedist,2) +  Math.pow(sidedist,2)));
 
-    console.log(" Got these also: vertexx: %s, vertexy: %s, avex: %s, avey: %s", vertexx, vertexy, avex, avey);
     let backangle = MapMath.GetBackAngle(angle1); 
     let {line1x, line1y} = MapMath.GetEndPoint(vertexx, vertexy, backangle , sidedist);
     let {line2x, lineby} = MapMath.GetEndPoint(vertexx, vertexy, angle2, sidedist);
 
-    console.log(" Got these also: banckangle: %s, line1x: %s, line1y: %s, line2x: %s, lineby: %s", backangle, line1x, line1y, line2x, lineby);
     let paths = [];
     paths.push(CreatePathElement(line1x, line1y, avex, avey));
     paths.push(CreatePathElement(line2x, lineby, avex, avey));
@@ -547,13 +646,14 @@ function DetectAndDrawRightAngles (LayerState, currstepindex, circlesize) {
     return paths;
 }
 
-function compileRules(LayerState) {
+/*
+ function compileRules(LayerState) {
     let AllRules = [];
     if (LayerState.steps.length && LayerState.rules.length) {
         // setting scale to 0 tells function not to set scale at all 
-        //AllRules = CreateGroupElement("rules", 0, 0, 0, 0, 0, LayerState.backcolor, LayerState.forecolor, LayerState.linewidth); 
         for (let i=0; i < LayerState.rules.length; i++) {
 
+    let [rulenum, stepnum, linedist, linedistunit, rulelength, rulelengthunit, lineoffset, angletoline] = splitwords(Instruction);
             let [stepnum, dist, unit, lengtha, lengthb, da, dx, dy] = LayerState.rules[i];
             stepnum = parseInt(stepnum);
             let stepindex = stepnum - 1;
@@ -569,8 +669,8 @@ function compileRules(LayerState) {
             let anglea = lineangle + da;
             let angleb = MapMath.GetBackAngle(anglea);
             
-            dx = (dx) ? dx : LayerState.fontsize * 2 * 2;
-            dy = (dy) ? dy : LayerState.linewidth * 2 * 2;
+            dx = (dx) ? dx : MapMath.rounddown(LayerState.fontsize * 2 * 2);
+            dy = (dy) ? dy : MapMath.rounddown(LayerState.linewidth * 2 * 2);
 
             let x = LayerState.steps[stepindex].points[0].x;
             let y = LayerState.steps[stepindex].points[0].y;
@@ -602,70 +702,82 @@ function compileRules(LayerState) {
                     }
                 }
             }
-            AllRules.push(CreateTextElement(rulelabel, x, y, dx, dy, anglea, LayerState.forecolor, LayerState.fontsize)); 
+            AllRules.push(CreateTextElement(rulelabel, x, y, dx, dy, anglea)); 
+        } 
+    }
+    return AllRules;
+}
+*/
+
+
+//     let [rulenum, stepnum, linedist, linedistunit, rulelength, rulelengthunit, angletoline, lineoffset ] = splitwords(Instruction);
+function compileRules(LayerState) {
+    let AllRules = [];
+    if (LayerState.rules && LayerState.rules.length) {
+        for (let i=0; i < LayerState.rules.length; i++) {
+
+            let thisrule = LayerState.rules[i];
+            let startpoint = thisrule.points[0];
+            let endpoint = thisrule.points[1];
+            let midpoint = thisrule.points[2];
+
+            let rulewidth = LayerState.linewidth / 2;
+            let dashlen = rulewidth * 2;
+            let dasharray = dashlen + "," + dashlen; 
+
+            AllRules.push(CreateRulePathElement(startpoint.x, startpoint.y, endpoint.x, endpoint.y, rulewidth, dasharray));
+            let xlabeloffset = thisrule.dx || 0;
+            let ylabeloffset = thisrule.dy || 2;
+
+            let lineangle = parseFloat(thisrule.lineangle);
+            let textangle = -lineangle; 
+            if (lineangle > 90 && lineangle < 270) { textangle = MapMath.GetBackAngle(textangle); }
+            AllRules.push(CreateTextElement(thisrule.label, midpoint.x, midpoint.y, xlabeloffset, ylabeloffset, textangle, LayerState.fontsize)); 
         } 
     }
     return AllRules;
 }
 
-function GetPaperSizes(size="letter",orientation="portrait") {
-    const portraitsizes = {"letter":  {width: 8.5, height: 11},
-    					    "legal":   {width: 8.5, height: 14},
-                            "tabloid": {width: 11, height: 17},
-                           };
-    let dims =  {width: 0, height: 0};
-    if (portraitsizes[size]) {
-        dims = portraitsizes[size];
-        if (orientation != "portrait") {
-            let tempwidth = dims.width;
-            dims.width = dims.height;
-            dims.height = tempwidth;
+function compilePoints(LayerState) {
+    let pointssvg = [];
+    for (p=0; p < LayerState.points.length; p++) {
+        if (! LayerState.points[p].hide) {
+            let label = LayerState.points[p].label;
+            let x = LayerState.points[p].x;
+            let y = LayerState.points[p].y;
+            let dx = LayerState.points[p].dx;
+            let dy = LayerState.points[p].dy;
+            let r = LayerState.linewidth * 2;
+            console.log("POINT INFO: x: %s, y: %s, r: %s", x, y, r);
+            pointssvg.push(CreateCircleElement(x,y,r));     
+            if (label) {
+                let textlabel = CreateTextElement(label, x, y, dx, dy, 0);     
+                textlabel.attributes["text-anchor"] = "start";
+                pointssvg.push(textlabel);
+            }
         }
-    } else { console.log("No paper size: %s .", size); }
-    console.log("dims:", dims);
-    return dims;
-}
-
-function GetPrintScale(bbox, finalwidthinches, finalheightinches, dpi) {
-
-    if (typeof finalwidthinches === "string" && typeof finalheightinches === "string") {
-        let dims = GetPaperSizes(finalwidthinches, finalheightinches);
-        finalwidthinches = dims.width;
-        finalheightinches = dims.height;
     }
-    const currentWidthInches = (bbox.maxx - bbox.minx) / dpi;
-    const currentHeightInches = (bbox.maxy - bbox.miny) / dpi;
-
-    const widthRatio = finalwidthinches / currentWidthInches;
-    const heightRatio = finalheightinches / currentHeightInches;
-
-    // Choose the smaller ratio to ensure the bounding box fits within the desired dimensions
-    const scale = Math.min(widthRatio, heightRatio);
-
-    // Check if the resulting bounding box exceeds the desired dimensions
-    if (currentWidthInches * scale > finalwidthinches || currentHeightInches * scale > finalheightinches) {
-        // Scale down to fit within the desired dimensions
-        const scaleToFitWidth = finalwidthinches / currentWidthInches;
-        const scaleToFitHeight = finalheightinches / currentHeightInches;
-        scale = Math.min(scaleToFitWidth, scaleToFitHeight);
-  }
-
-  return rounddown(scale);
+    return pointssvg; 
 }
+
+
 
 
 module.exports = { 
     CreateSVGElement,
     CreateGroupElement,
-    CreateSVGBaseGroup,
     GetSVGJSON,
     SaveSVGJSON,
     GetImageDimensions,
     GetPointsFromPath,
     CreateLineElement,
+    CreateTextElement,
+    CreateCircleElement,
+    CreatePathElement, 
     GenerateSVG,
     GetElementsBoundingBox, 
     ScaleElementsBoundingBox, 
+    GetCompassGroup,
 }
 
 

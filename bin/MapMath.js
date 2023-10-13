@@ -1,7 +1,10 @@
-function numberletter (num) { return String.fromCharCode(96 + parseInt(num)); }
+const CITESTR = "—";
+const CHAINS = ["chains", "chain", "ch", "c"];
+const LINKS = ["links", "link", "lk", "l"];
+const FEET = ["feet", "foot", "ft", "f"];
 
-function splitwords (line, size=1, spliton=" ") { 
-    line = line.toString().toLowerCase();
+function splitwords (line, spliton=" ", size=1) { 
+    line = line.toString();
     const items = line.split(spliton);
     if (size === 1) { return items };
     const result = [];
@@ -9,6 +12,48 @@ function splitwords (line, size=1, spliton=" ") {
         result.push(items.slice(i, i + size));
     }
     return result;
+}
+
+function titlecase(word) {
+  // Convert the word to lowercase and then capitalize the first letter
+  return word.toLowerCase().charAt(0).toUpperCase() + word.slice(1);
+}
+
+const DEGSTR = "°";
+function containsOnlyLetters(string) { return /^[a-zA-Z]+$/.test(string); }
+function formatDMS(dms) {
+    let finalDMSparts = []; 
+    let dmswords = splitwords(dms.toString()); 
+    for (let w=0; w < dmswords.length; w++) {
+        let word = dmswords[w];
+        if (word.includes(",")) {
+            let dmsparts = splitwords(word, ","); 
+            let tempDMS = "";
+            if (dmsparts.length > 0) { tempDMS += `${dmsparts[0]}${DEGSTR}`; }
+            if (dmsparts.length > 1) { tempDMS += ` ${dmsparts[1]}\'`; }
+            if (dmsparts.length > 2) { tempDMS += ` ${dmsparts[2]}\"`; }
+            finalDMSparts.push(tempDMS);
+        } else if (containsOnlyLetters(dmswords[w])) {
+            finalDMSparts.push(dmswords[w].toUpperCase());
+        } 
+    }
+    return finalDMSparts.join(" ");
+}
+
+//function numberletter (num) { return String.fromCharCode(96 + parseInt(num)); }
+function numberletter(index) {
+    if (index <= 0) { return ''; }
+
+    const base = 26;
+    const charCodeA = 'A'.charCodeAt(0) - 1;
+    const remainder = index % base;
+    let quotient = Math.floor(index / base);
+    let label = '';
+
+    if (remainder === 0) { label = 'Z'; quotient--; } 
+    else { label = String.fromCharCode(charCodeA + remainder); }
+
+    return numberletter(quotient) + label;
 }
 
 const path = require("path");
@@ -33,19 +78,103 @@ function logall(...args) {
         let varvalue = args[a][varname]; 
         msg = msg + varname + ": " + varvalue; 
     }
-    console.log(msg);
+}
+
+function createMapFromArray(objectarray, id="id", copyobj=false) {
+    const objectmap= new Map();
+    for (let o=0; o < objectarray.length; o++) {
+       if (objectarray[o] && objectarray[o][id]) {
+            let object = objectarray[o];
+            if (copyobj) {
+                objectmap.set(object[id], JSON.parse(JSON.stringify(object)));
+            } else {
+                objectmap.set(object[id], object);
+            }
+        } 
+    }
+    return objectmap;
+}
+ 
+function cascadeProperties (objects, defaults={}) {
+    // Create a map for quick lookup based on id
+    const objectMap = new Map();
+    for (let x=0; x < objects.length; x++) {
+        if (objects[x] && objects[x].id) {
+            objectMap.set(objects[x].id, objects[x]);
+        }
+    }
+
+    function mergeobjects(parent, child) {
+        // Cascade properties from parent to child
+        for (const key in parent) {
+            if (child && !(key in child)) {
+                let defaultvalue =  JSON.parse(JSON.stringify(parent[key])); // ensure we have a copy of the value and not a reference to a previous value
+                child[key] = defaultvalue; 
+            } else {
+                if (key == "instructions" || key == "notes") {
+                    if (! Array.isArray(child[key])) {
+                        let tempvalue = child[key]
+                        child[key] = [];
+                        child[key].push(tempvalue);
+                    }
+                    child[key] = parent[key].concat(child[key]); 
+                }
+            } 
+        }
+        return child;
+    }
+
+    // Recursive function to cascade properties
+    function cascadePropertiesRecursive(obj) {
+        console.log('cascading properties', obj);
+        if (obj && obj.parentid) {
+            const parent = objectMap.get(obj.parentid);
+            if (parent) {
+                // Recursively update properties from the parent
+                cascadePropertiesRecursive(parent);
+                obj = mergeobjects(parent, obj);
+            }
+        } else {
+            obj = mergeobjects(defaults, obj);
+        }
+        return obj;
+    }
+
+    let mergedobjects = []; 
+    // Apply cascading properties to each object
+    for (let i=0; i < objects.length; i++) {
+        mergedobjects.push(cascadePropertiesRecursive(objects[i])) ;
+    }
+    return mergedobjects;
 }
 
 // round down to two decimal places, likely in preparation for display
 function rounddown (value) { return (value) ? parseFloat(value.toFixed(2)) : value ;} 
-function normalizedegrees(degrees) { return (degrees % 360 + 360) % 360; }
+function normalizedegrees(degrees) { return (parseFloat(degrees) % 360 + 360) % 360; }
+
+function GetBackAngle(angle) {
+    angle = parseFloat(angle);
+    angle = (angle < 180) ? angle + 180 : angle - 180;
+    return rounddown(angle); 
+}
 
 function AzimuthtoSVG (azimuth) { return normalizedegrees(90 - normalizedegrees(azimuth)); }
 function SVGtoAzimuth (svgangle) { return normalizedegrees(90 - normalizedegrees(svgangle)); }
 function CartCoordstoSVGCoords(point) {
-    if (point.y) { point.y = -point.y; }
-    return point;
+    let {x,y} = point;
+    if (y) { y = -y; }
+    return {x,y};
 }
+// for the same of clarity
+function SVGCoordstoCartCoords(point) {
+    //if (point.y) { point.y = -point.y; }
+    //return point;
+    let {x,y} = point;
+    if (y) { y = -y; }
+    return {x,y};
+}
+
+function squareFeetToAcres(squareFeet) { return rounddown(squareFeet / 43560) ; }
 
 // Math functions take radians, not degrees
 function degstorads (degrees) { 
@@ -83,9 +212,9 @@ function decstodegs (decimalBearing) {
     const degrees = Math.trunc(decimalBearing);
     const degreesDecimal = Math.abs(decimalBearing);
     const minutesDecimal = (degreesDecimal - degrees) * 60;
-    const minutes = Math.floor(minutesDecimal);
+    let minutes = Math.floor(minutesDecimal);
     const secondsDecimal = (minutesDecimal - minutes) * 60;
-    const seconds = Math.round(secondsDecimal);
+    let seconds = Math.round(secondsDecimal);
     
     // Handle the cases when minutes or seconds reach 60
     if (seconds === 60) { seconds = 0; minutes += 1; }
@@ -100,22 +229,16 @@ function decstodegs (decimalBearing) {
 
 // bearings.set("n 0 w", 360);
 function BearingtoAzimuth (bearing) {
-    logall({bearing});
     let [primary, angle, secondary] = splitwords(bearing);
-    logall({primary},{angle},{secondary});
     let quadrant = primary + secondary;
     let azimuth = degstodecs(angle);
 
-    logall({quadrant},{azimuth});
     if (quadrant === "se") { azimuth = 180 - azimuth} 
     if (quadrant === "sw") { azimuth = 180 + azimuth; } 
     if (quadrant === "nw") { azimuth = 360 - azimuth; }
-    logall({azimuth});
 
     azimuth = (azimuth == 360) ? 0 : azimuth; 
-    logall({azimuth});
     azimuth = rounddown(azimuth);
-    logall({azimuth});
     return azimuth;
 }
 
@@ -132,12 +255,6 @@ function AzimuthtoBearing (azimuth) {
     return [primary, degrees, secondary].join(" ");
 }
 
-function GetBackAngle(angle) {
-    angle = parseFloat(angle);
-    angle = (angle < 180) ? angle + 180 : angle - 180;
-    return rounddown(angle); 
-}
-
 function GetBackBearing (bearing) {
     let [primary, angle, secondary] = splitwords(bearing);
     let invprimary= (primary == "s") ? "n" : "s";
@@ -145,47 +262,56 @@ function GetBackBearing (bearing) {
     return [invprimary, angle, invsecondary].join(" ");
 }
 
-function GetAllBearingInfo(bearing, magdecl, rotate=0, line={}) {
+
+// function AzimuthtoSVG (azimuth) { return normalizedegrees(90 - azimuth); }
+function GetAllBearingInfo(bearing, magdecl=0, rotate=0, line={}) {
     magdecl = parseFloat(magdecl);
     rotate = parseFloat(rotate); 
     let [primary, anglespec, secondary] = splitwords(bearing);
-    let tempangle =  normalizedegrees(parseFloat(anglespec));
-    
-    logall({bearing});
-    logall({primary},{anglespec},{secondary});
-
+    let tempangle =  parseFloat(anglespec);
     let quad = primary + secondary;
-    if (quad == "az") { 
-        line.az = normalizedegrees(tempangle + magdecl);
+    console.log("tempangle: %s, bearing: %s, quad: %s", tempangle, bearing, quad);
+    if (quad == "tn") { 
+        line.az = rounddown(normalizedegrees(tempangle));
+    } else if (quad == "az") { 
+        let adjustedangle = tempangle + magdecl;
+        line.az = rounddown(normalizedegrees(adjustedangle));
     } else { 
         line.az = rounddown(normalizedegrees(BearingtoAzimuth(bearing) + magdecl)); 
     }
     line.bearing = AzimuthtoBearing(line.az); 
-    //line.lineangle = rounddown(normalizedegrees(AzimuthtoSVG(line.az + parseFloat(rotate))));
-    line.lineangle = rounddown(normalizedegrees(AzimuthtoSVG(line.az + rotate)));
-    
-    console.log("lineangle: %s", line.lineangle);
+    console.log("line.az: %s, rotate: %s", line.az, rotate);
+console.log("normalized az: %s", normalizedegrees(line.az));
+console.log("90 - az: %s", 90 - line.az);
+console.log("normalized 90 - az: %s", normalizedegrees(90 - line.az));
+//function AzimuthtoSVG (azimuth) { return normalizedegrees(90 - normalizedegrees(azimuth)); }
+    console.log("az to svg: %s", AzimuthtoSVG(line.az + rotate));
+    console.log("normalized: %s", normalizedegrees(AzimuthtoSVG(line.az + rotate)));
+    console.log("rounded: %s", rounddown(normalizedegrees(AzimuthtoSVG(line.az + rotate))));
 
+    line.lineangle = AzimuthtoSVG(line.az + rotate);
+    console.log(" !!!!! line.az: %s, line.bearing: %s, line.lineangle: %s", line.az, line.bearing, line.lineangle); 
+
+    let newbearing = line.bearing; let newaz = line.az; let newlineangle = line.lineangle;
     line.baz = GetBackAngle(line.az);
     line.bbearing = GetBackBearing(line.bearing);
     line.blineangle = GetBackAngle(line.lineangle);
     return line;
 }
 
-function GetBearingsFromPoints (x1, y1, x2, y2) {
-    x1 = parseFloat(x1);
-    y1 = parseFloat(y1);
-    x2 = parseFloat(x2);
-    y2 = parseFloat(y2);
+function GetAzimuthFromPoints(x1, y1, x2, y2) {
+    return az = rounddown(SVGtoAzimuth(GetAngleFromPoints(x1, y1, x2, y2)));
+}
 
-    let [primary, secondary] = ["n", "e"]; 
-    if (x2 < x1) { secondary = "w"; }
-    if (y2 < y1) { primary= "s"; }
-    let lineangle = GetAngleFromPoints(x1, y1, x2, y2);
-    lineangle = rounddown(lineangle);
-    let az = SVGtoAzimuth(lineangle);
-    let degangle = decstodegs(az);
-    return [primary, degangle, secondary].join(" ");
+function GetBearingsFromPoints (x1, y1, x2, y2) {
+    // remember to use Cartesian points (negate y axis) for calcs
+    x1 = parseFloat(x1);
+    y1 = -parseFloat(y1);
+    x2 = parseFloat(x2);
+    y2 = -parseFloat(y2);
+
+    let az = GetAzimuthFromPoints(x1, y1, x2, y2);
+    return AzimuthtoBearing(az);
 }
 
 function chainstolinks (chains) { return parseFloat(chains) * 100; }
@@ -196,18 +322,15 @@ function normalizechains (chainsValue) {
     chainsValue = parseFloat(chainsValue);
     const chains = Math.floor(chainsValue);
     const links = chainstolinks(chainsValue - chains);
-    console.log("normalizechains  chainsvalue: %s, chains: %s, links: %s", chainsValue, chains, links);
     return [chains, links];
 }
 
 // properly handle values > 100 
 function normalizelinks (linksvalue) {
-    console.log("linksvalue coming in: %s", linksvalue);
     //const chains = Math.floor(linkstochains(parseFloat(linksvalue))); 
     linksvalue = parseFloat(linksvalue)
     const links = linksvalue % 100;
     const chains = linkstochains(linksvalue - links); 
-    console.log("normalizelinks linksvalue: %s, chains: %s, links: %s", linksvalue, chains, links);
     return [chains, links];
 }
 
@@ -227,20 +350,20 @@ function GetAllDistanceInfo (distances, line={}) {
     if (distparts.length == 1) { distparts.push("feet"); } 
     for (let d=0; d < distparts.length; d+=2) {
         let [dist, unit] = [distparts[d], distparts[d+1]]; 
-        logall({dist},{unit});
         dist = parseFloat(dist); 
-        if (unit == "chains" || unit == "chain") {
+        if (CHAINS.includes(unit)) {
             line.linelength += linkstofeet(chainstolinks(dist));
-        } else if (unit == "links" || unit == "link") {
+        } else if (LINKS.includes(unit)) {
             line.linelength += linkstofeet(dist);
-        } else if (unit == "feet" || unit == "foot") {
+        } else if (FEET.includes(unit)) {
             line.linelength += dist;
         }
     }
+    line.linelength = rounddown(line.linelength);
     line.feet = line.linelength 
     let [tempchains, templinks] = fromfeet(line.feet);
     line.chains = tempchains;
-    line.links = templinks;
+    line.links = rounddown(templinks);
     return line; 
 }
 
@@ -254,8 +377,8 @@ function GetDistanceFromPoints (x1, y1, x2, y2) {
     y1 = parseFloat(y1);
     x2 = parseFloat(x2);
     y2 = parseFloat(y2);
-    const xdiff = x2 - x1;
-    const ydiff = y2 - y1;
+    const xdiff = x1 - x2;
+    const ydiff = y1 - y2;
     return rounddown(Math.sqrt( (xdiff ** 2) + (ydiff ** 2 ) ));
 }
 
@@ -274,7 +397,7 @@ function GetAngleFromPoints (x1, y1, x2, y2) {
     y2 = parseFloat(y2);
     const xdiff = x2 - x1;
     const ydiff = y2 - y1; 
-    const degrees = rounddown(Math.atan2(ydiff, xdiff) * ( 180 / Math.PI ));
+    const degrees = rounddown(radstodegs(Math.atan2(ydiff, xdiff)));
     return rounddown(normalizedegrees(degrees));
 }
 
@@ -291,10 +414,8 @@ function GetEndPoint (x1, y1, angle, dist) {
     y1 = parseFloat(y1);
     angle = parseFloat(angle);
     dist = parseFloat(dist);
-    logall({x1},{y1},{angle},{dist});
     let x2 = x1 + Math.cos(degstorads(angle)) * dist;
     let y2 = y1 + Math.sin(degstorads(angle)) * dist;
-    logall({x2},{y2});
     return {x: rounddown(x2), y: rounddown(y2)};
 }
 
@@ -314,7 +435,6 @@ function GetIntersectionPoint(line1, line2) {
     const denominator = line1dir.x * line2dir.y - line1dir.y * line2dir.x;
     let [intersectionx, intersectiony] = [null, null];
     if (denominator === 0) {
-      console.log("Lines are parallel, no intersection");
     } else {
       // Calculate parameters for intersection formula
       const t1 = ((line2start.x - line1start.x) * line2dir.y - (line2start.y - line1start.y) * line2dir.x) / denominator;
@@ -324,9 +444,8 @@ function GetIntersectionPoint(line1, line2) {
         // Calculate point of intersection
         intersectionx = line1start.x + t1 * line1dir.x;
         intersectiony = line1start.y + t1 * line1dir.y;
-        console.log("Lines intersect at:", intersectionx, intersectiony);
       } else {
-        console.log("Lines do not intersect");
+        // console.log("Lines do not intersect");
       }
     }
     return { x: rounddown(intersectionx), y: rounddown(intersectiony) };
@@ -355,18 +474,19 @@ function AreLinesParallel(line1, line2) {
 
 function AreAnglesRight(angle1, angle2, tolerance=0.5) {
     angle1 = parseFloat(angle1);
-    angle2 = parseFloat(angle2);;
-    let rightangle = false;
+    angle2 = parseFloat(angle2);
+    let isrightangle = false;
     
     // normalize the bearings to account for wrapping, such as a 90 degree turn from 0 degrees to 270 degrees
     angle1 = (angle1 + 360) % 360;
     angle2 = (angle2 + 360) % 360;
 
+    // Calculate the absolute difference between the two angles
     let anglediff = Math.abs(angle1 - angle2); 
     if (anglediff > 180) { anglediff = 360 - anglediff; }
 
-    if (Math.abs(anglediff - 90) <= tolerance) { rightangle = true; }
-    return rightangle;
+    if (Math.abs(anglediff - 90) <= tolerance) { isrightangle = true; }
+    return isrightangle;
 }
 
 function AreLinesRight(line1, line2, tolerance=0.5) {
@@ -376,7 +496,6 @@ function AreLinesRight(line1, line2, tolerance=0.5) {
 }
 
 function GetInsideAverageAngle(angle1, angle2) {
-    console.log("averaging: %s, %s", angle1, angle2);
     angle1 = parseFloat(angle1);
     angle2 = parseFloat(angle2);
     // Calculate the average of the two angles in degrees
@@ -394,19 +513,32 @@ function GetInsideAverageAngle(angle1, angle2) {
 }
 
 function GetFuzzyLabelOffset (angle1, angle2, space) {
-    logall({angle1});
+    space = parseFloat(space);
+    let tempangle1 = angle1;
     angle1 = GetBackAngle(angle1);
     let point = { x: space, y: space };
     let inaveangle = GetInsideAverageAngle(angle1, angle2);
     let outaveangle = (inaveangle + 180) % 360;
-    logall({angle1},{angle2});
-    logall({inaveangle},{outaveangle});
-    if (outaveangle > 90 && outaveangle < 270) { point.x = -space; console.log("1"); }
-    if (outaveangle == 90 || outaveangle == 270) { point.x = 0;  console.log("2");}
-	if (outaveangle > 0 && outaveangle < 180) { console.log("Y"); point.y = -space; console.log("3");}
-    if (outaveangle == 0 || outaveangle == 180) { point.y = 0;  console.log("4");}
+    if (outaveangle > 90 && outaveangle < 270) { point.x = -space; }
+    if (outaveangle == 90 || outaveangle == 270) { point.x = 0; }
+	if (outaveangle > 0 && outaveangle < 180) { point.y = -space; }
+    if (outaveangle == 0 || outaveangle == 180) { point.y = 0; }
     return point;
 } 
+
+function GetRatioOfLineLengths (line1, line2) {
+    console.log("line1: %o, line2: %o", line1, line2);
+    let length1 = GetDistanceOfLine(line1);
+    let length2 = GetDistanceOfLine(line2);
+    console.log("length1: %s, length2: %s", length1, length2);
+    return length2 / length1; 
+}
+
+function GetRatioOfLineLengthsGivenPoints (point1, point2, point3, point4) {
+    let line1 = {}; line1.points = [point1, point2];
+    let line2 = {}; line2.points = [point3, point4];
+    return GetRatioOfLineLengths(line1, line2);
+}
 
 function DoesLineContinueGivenPoints (intersectionpoint, knownendpoint, oppendpoint) {
     intersectionpoint.x = parseFloat(intersectionpoint.x);
@@ -432,18 +564,14 @@ function DoesLineContinue (line, intersectionpoint) {
     return DoesLineContinueGivenPoints(intersectionpoint, knownendpoint, oppendpoint);
 }
    
-function IsPointOnLine (x, y, line, tolerance=0.5) {
-    logall({x},{y});
+function IsPointOnLine (x, y, line, tolerance=1) {
     x = parseFloat(x); y = parseFloat(y);
     let [x1,y1] = [parseFloat(line.points[0].x), parseFloat(line.points[0].y)];
-    logall({x1},{y1});
     let [x2,y2] = [parseFloat(line.points[1].x), parseFloat(line.points[1].y)];
-    logall({x2},{y2});
 
     const area = Math.abs(0.5 * ((x1 - x2) * (y - y2) - (x - x2) * (y1 - y2)));
     const segmentLength = Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
 
-    // logall({area},{segmentLength});
     return area < tolerance && segmentLength >= Math.sqrt((x - x1) ** 2 + (y - y1) ** 2) && segmentLength >= Math.sqrt((x - x2) ** 2 + (y - y2) ** 2);
 }
 
@@ -452,42 +580,36 @@ function GetRightAnglePoints(line1, line2, intersectionpoint, space) {
     const allRightAnglePoints = [];
 
     let  [intx, inty] = [parseFloat(intersectionpoint.x), parseFloat(intersectionpoint.y)];
-    logall({intx},{inty}); 
     let hypot = Math.sqrt((space ** 2) + (space ** 2)); 
-
     let angle1 = GetAngleOfLine(line1);
     let angle2 = GetAngleOfLine(line2);
-    logall({angle1},{angle2}); 
 
-    if (AreAnglesRight(angle1, angle2)) {
-        console.log("  -- YES, right angles");
+    // check forward and back angles
+    let isrightangle = AreAnglesRight(angle1, angle2);
 
+    if (isrightangle) {
         // make sure we haven't gone past length of line
         let linepoint1 = GetEndPoint(intx, inty, angle1, space);
         let islinepoint1on = IsPointOnLine(linepoint1.x, linepoint1.y, line1);
         if (! islinepoint1on) { 
-            console.log("first try on first line failed");
             angle1 = GetBackAngle(angle1); 
             linepoint1 = GetEndPoint(intx, inty, angle1 , space); 
             islinepoint1on = IsPointOnLine(linepoint1.x, linepoint1.y, line1);
-            if (! islinepoint1on) { console.log("second try failed"); }
-        } else { console.log("point (first) IS ON line"); }
+        }
 
         let linepoint2 = GetEndPoint(intx, inty, angle2, space);
         let islinepoint2on = IsPointOnLine(linepoint2.x, linepoint2.y, line2);
         if (! islinepoint2on) { 
-            console.log("first try on second line failed");
             angle2 = GetBackAngle(angle2);
             linepoint2 = GetEndPoint(intx, inty, angle2, space); 
             islinepoint2on = IsPointOnLine(linepoint2.x, linepoint2.y, line2);
-            if (! islinepoint2on) { console.log("second try failed"); }
         }
 
         if (islinepoint1on && islinepoint2on) {
             let aveangle1 = GetInsideAverageAngle(angle1, angle2)
             let avepoint1 = GetEndPoint(intx, inty, aveangle1, hypot);
             allRightAnglePoints.push([avepoint1, linepoint1, linepoint2]);
-        } else { console.log("points SHOULD BE but are NOT"); }
+        } 
 
         let [angle3, angle4] = [null, null];
         let [linepoint3, linepoint4] = [null, null];
@@ -528,10 +650,10 @@ function GetRightAnglePoints(line1, line2, intersectionpoint, space) {
            } 
         }
     }
-    console.log("What do I have: %j", allRightAnglePoints);
     return allRightAnglePoints;
 }
 
+// this function, unlike most others, is meant to take SVG coordinates
 function MoveAndRotatePoint(x, y, xoffset=0, yoffset=0, rotatedegrees=0) {
 
     let [rotx, roty] = [x,y];
@@ -546,8 +668,8 @@ function MoveAndRotatePoint(x, y, xoffset=0, yoffset=0, rotatedegrees=0) {
         roty = adjpoint.y;
     }
 
-    x = rotx + xoffset;
-    y = roty + yoffset;
+    x = rotx + parseFloat(xoffset);
+    y = roty + parseFloat(yoffset);
 
     // normalize any -0 values
     if (Math.abs(x) === 0) { x = 0; }
@@ -571,12 +693,12 @@ function RotateBoundingBox(bbox, angledegs) {
     ];
 
     // Rotate each corner around the center of the bounding box and keep track of the new coordinates
-    const centerX = (bbox.minx + bbox.maxx) / 2;
-    const centerY = (bbox.miny + bbox.maxy) / 2;
+    const centerx = (bbox.minx + bbox.maxx) / 2;
+    const centery = (bbox.miny + bbox.maxy) / 2;
 
     const rotatedCorners = corners.map(({ x, y }) => ({
-      x: centerX + (x - centerX) * cos - (y - centerY) * sin,
-      y: centerY + (x - centerX) * sin + (y - centerY) * cos,
+      x: centerx + (x - centerx) * cos - (y - centery) * sin,
+      y: centery + (x - centerx) * sin + (y - centery) * cos,
     }));
 
     // Calculate the new bounding box
@@ -588,8 +710,69 @@ function RotateBoundingBox(bbox, angledegs) {
     return bbox;
 }
 
+
+// get average of all endpoint coordinates for map steps
+function getPolygonCartCenterPoint(lines) {
+    let cartCenterPoint = {x:0, y:0};
+    if (lines.length === 0) { return null; } // Handle an empty polygon or invalid input. 
+
+    let [totalx, totaly] = [0, 0];
+    for (let i=0; i < lines.length; i++) {
+        totalx += lines[i].points[1].x;
+        totaly += lines[i].points[1].y;
+    }
+
+    const centerx = rounddown(totalx / lines.length);
+    const centery = rounddown(totaly / lines.length);
+    cartCenterPoint = SVGCoordstoCartCoords({x: centerx, y: centery}); 
+    return cartCenterPoint;
+}
+
+function isClosedPolygon(lines, tolerance=1) {
+    let isClosedPolygon = true;
+    if (lines.length < 3) {
+        // A polygon must have at least 3 sides to be considered closed.
+        isClosedPolygon = false;
+        return isClosedPolygon;
+    }
+
+    for (let i = 0; i < lines.length; i++) {
+        let currentEndPoint = lines[i].points[1];
+
+        // if on last step, wrap to first *end*point
+        let nextStartPoint = lines[0].points[1];
+        if (i < lines.length - 1) {
+            nextStartPoint = lines[i+1].points[0];
+        } 
+
+        if (currentEndPoint.x < nextStartPoint.x - tolerance || currentEndPoint.x > nextStartPoint.x + tolerance) {
+            if (currentEndPoint.y < nextStartPoint.y - tolerance || currentEndPoint.y > nextStartPoint.y + tolerance) {
+                // If any consecutive pair of points is not connected, within tolerance, it's not a closed polygon.
+                isClosedPolygon = false;
+                break;
+            }
+        }
+    }
+    return isClosedPolygon;
+}
+
+
+// Function to calculate the area of a polygon in square pixels (= square feet at scale 1).
+function calculatePolygonArea(lines) {
+    let area = 0;
+    if (! isClosedPolygon(lines)) { return 0; }
+    for (let i = 0; i < lines.length; i++) {
+        const currentPoint = lines[i].points[1];
+        const nextPoint = lines[(i + 1) % lines.length].points[1]; // Wrap around to the first point.
+        area += (currentPoint.x * nextPoint.y - nextPoint.x * currentPoint.y);
+    }
+    return rounddown(Math.abs(area) / 2);
+}
+
+
 module.exports = { 
-    numberletter, splitwords, logall, 
+    CITESTR, DEGSTR, formatDMS, containsOnlyLetters, titlecase,
+    numberletter, splitwords, logall, createMapFromArray, cascadeProperties,  
     rounddown, normalizedegrees,
     degstorads, radstodegs, 
     chainstolinks, linkstochains,
@@ -597,15 +780,16 @@ module.exports = {
     tofeet, fromfeet, 
     degstodecs, decstodegs,  
     GetEndPoint, GetDistanceFromPoints, GetAngleFromPoints, 
-    MoveAndRotatePoint,
+    MoveAndRotatePoint, GetRatioOfLineLengthsGivenPoints, GetRatioOfLineLengths,
     GetIntersectionPoint, AreLinesParallel,
     GetDistanceOfLine, GetAngleOfLine, IsPointOnLine,
     AreAnglesRight, AreLinesRight, GetRightAnglePoints, GetInsideAverageAngle,
     DoesLineContinue, DoesLineContinueGivenPoints,
     GetFuzzyLabelOffset, BearingtoAzimuth, AzimuthtoBearing, AzimuthtoSVG, SVGtoAzimuth,
-    CartCoordstoSVGCoords, RotateBoundingBox,
+    CartCoordstoSVGCoords, SVGCoordstoCartCoords, RotateBoundingBox,
     GetBackAngle, GetBackBearing, GetBearingsFromPoints, 
     GetAllDistanceInfo, GetFeetOnly, GetAllBearingInfo, 
+    squareFeetToAcres, isClosedPolygon, getPolygonCartCenterPoint, calculatePolygonArea
 }
 
 

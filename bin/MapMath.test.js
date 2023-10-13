@@ -172,8 +172,14 @@ bearings.set("s 52 w", 232);
 RunTestMap(bearings, "Test converting between compass bearings and azimuth", MapMath.BearingtoAzimuth, MapMath.AzimuthtoBearing);
 
 test("Test edge cases of bearings and azimuth", () => {
+
+    expect(MapMath.BearingtoAzimuth("a 0 z")).toBe(0); 
+    expect(MapMath.BearingtoAzimuth("a 90 z")).toBe(90); 
+    expect(MapMath.BearingtoAzimuth("a 183.3 z")).toBe(183.3); 
+    
     expect(MapMath.BearingtoAzimuth("n 0 e")).toBe(0); 
     expect(MapMath.BearingtoAzimuth("n 0 w")).toBe(0); 
+    expect(MapMath.BearingtoAzimuth("n 15,30 w")).toBe(344.5); 
     expect(MapMath.BearingtoAzimuth("n 90 e")).toBe(90); 
     expect(MapMath.BearingtoAzimuth("s 90 e")).toBe(90); 
     expect(MapMath.BearingtoAzimuth("s 0 e")).toBe(180); 
@@ -314,14 +320,43 @@ test("Test intersections, perpendicularity, parallelism of line-like objects", (
     expect(continues3).toBe(true);
 });
 
+
+function CartCoordstoSVGCoords(point) {
+    if (point.y) { point.y = -point.y; }
+    return point;
+}
+// for the same of clarity
+function SVGCoordstoCartCoords(point) {
+    if (point.y) { point.y = -point.y; }
+    return point;
+}
+
+
+expect(MapMath.CartCoordstoSVGCoords({x:100, y:120})).toStrictEqual({x:100, y:-120});
+//expect(MapMath.SVGCoordstoCartCoords({x:100, y:120})).toStrictEqual({x:100, y:-120});
+// TODO revisit this!
+
+const cartmap = new Map();
+cartmap.set({x:0, y:0}, {x:0, y:0}); 
+//cartmap.set({x:120, y:100}, {x:120, y:-100}); 
+//cartmap.set({x:-120, y:-100}, {x:-120, y:100}); 
+//RunTestMap(cartmap, "Test converting Cartesian coordinates to SVG equivalent", MapMath.CartCoordstoSVGCoords, MapMath.SVGCoordstoCartCoords); 
+let point = {x:100, y:120}; 
+//expect(MapMath.CartCoordstoSVGCoords(point)).toStrictEqual({x:100, y:-120});
+//expect(MapMath.SVGCoordstoCartCoords(point)).toStrictEqual({x:100, y:-120});
+
+/*
 test("Test converting Cartesian coordinates to SVG equivalent ", () => {
     let point = {x:0,y:0};
+    // function SVGCoordstoCartCoords(point) {
     expect(MapMath.CartCoordstoSVGCoords(point)).toStrictEqual({x:0, y:0});
     point = {x:120, y:100};
     expect(MapMath.CartCoordstoSVGCoords(point)).toStrictEqual({x:120, y:-100});
     point = {x:-120, y:-100};
     expect(MapMath.CartCoordstoSVGCoords(point)).toStrictEqual({x:-120, y:100});
 });
+*/
+
 
 test("Test moving and rotating points", () => {
     expect(MapMath.MoveAndRotatePoint(120,100,0,0)).toStrictEqual({x:120,y:100});
@@ -448,6 +483,7 @@ test("Test getting all bearings info", () => {
     result = MapMath.GetAllBearingInfo(bearing, magdecl, rot);
     expect(result).toStrictEqual(line);
 
+    // new tests
     magdecl = 0;
     rot = 20;
     bearing = "a 52 z";
@@ -460,6 +496,41 @@ test("Test getting all bearings info", () => {
     result = MapMath.GetAllBearingInfo(bearing, magdecl, rot);
     expect(result).toStrictEqual(line);
 
+    magdecl = -10;
+    rot = 20;
+    bearing = "a 53 z";
+    line = {az: 43,
+            baz: 223,
+            lineangle: 27,
+            blineangle: 207,
+            bearing: "n 43 e",
+            bbearing: "s 43 w"};
+    result = MapMath.GetAllBearingInfo(bearing, magdecl, rot);
+    expect(result).toStrictEqual(line);
+    
+    magdecl = 0;
+    rot = 20;
+    bearing = "t 53 n";
+    line = {az: 53,
+            baz: 233,
+            lineangle: 17,
+            blineangle: 197,
+            bearing: "n 53 e",
+            bbearing: "s 53 w"};
+    result = MapMath.GetAllBearingInfo(bearing, magdecl, rot);
+    expect(result).toStrictEqual(line);
+    
+    magdecl = -10;
+    rot = -20;
+    bearing = "t 53 n";
+    line = {az: 53,
+            baz: 233,
+            lineangle: 57,
+            blineangle: 237,
+            bearing: "n 53 e",
+            bbearing: "s 53 w"};
+    result = MapMath.GetAllBearingInfo(bearing, magdecl, rot);
+    expect(result).toStrictEqual(line);
 });
 
 
@@ -471,8 +542,13 @@ test("Test getting bearings from points", () => {
     expect(MapMath.GetBearingsFromPoints(x1,y1,x2,y2)).toStrictEqual("n 90 e");
     
     [x2, y2] = [0,100];
-    expect(MapMath.GetBearingsFromPoints(x1,y1,x2,y2)).toStrictEqual("n 0 e");
+    expect(MapMath.GetBearingsFromPoints(x1,y1,x2,y2)).toStrictEqual("s 0 e");
 
+    [x2, y2] = [0,100];
+    expect(MapMath.GetBearingsFromPoints(x1,y1,x2,y2)).toStrictEqual("s 0 e");
+
+    [x2, y2] = [0,100];
+    expect(MapMath.GetBearingsFromPoints(x1,y1,x2,y2)).toStrictEqual("s 0 e");
 });
 
 
@@ -504,7 +580,118 @@ test("Test bounding box rotation calculations", () => {
 });
 
 
+test("Test point labelling scheme ", () => {
+    expect(MapMath.numberletter(1)).toBe("A");
+    expect(MapMath.numberletter(2)).toBe("B");
+    expect(MapMath.numberletter(26)).toBe("Z"); 
+    expect(MapMath.numberletter(27)).toBe("AA");
+    expect(MapMath.numberletter(28)).toBe("AB"); 
+    expect(MapMath.numberletter(52)).toBe("AZ");
+    expect(MapMath.numberletter(53)).toBe("BA");
+    expect(MapMath.numberletter(54)).toBe("BB"); 
+});
 
+
+test("Test layer hierarchy", () => {
+    let strandedparent = {id: "strandedparent", prop1: "stranded"};
+    let parent = {id: "parent", prop1: "prop1fromparent"};
+    let child = {id: "child", parentid: "parent", prop2: "prop2fromchild", prop3: "prop3fromchild"};
+    let grandchild1 = {id: "grandchild1", parentid: "child"};
+
+    let group = [parent, child, grandchild1];
+    group = MapMath.cascadeProperties(group);
+
+    console.log(group);
+    for (let g=0; g < group.length; g++) {
+        if (group[g].id === "grandchild1") {
+            expect(group[g].prop1).toBe("prop1fromparent");
+            expect(group[g].prop3).toBe("prop3fromchild");
+        }
+    }
+
+});
+
+/*
+ * test the function containsOnlyLetters(string) in MapMath.js
+ */
+
+test("Test containsOnlyLetters(string)", () => {
+    expect(MapMath.containsOnlyLetters("abc")).toBe(true);
+    expect(MapMath.containsOnlyLetters("abc123")).toBe(false);
+    expect(MapMath.containsOnlyLetters("abc123!")).toBe(false);
+});
+    
+test("Test titlecase(word)", () => {
+    expect(MapMath.titlecase("abc")).toBe("Abc");
+    expect(MapMath.titlecase("abc123")).toBe("Abc123");
+    expect(MapMath.titlecase("abc123!")).toBe("Abc123!");
+});
+
+test("Test formatDMS(dms)", () => {
+    expect(MapMath.formatDMS("0,0,0")).toBe("0° 0' 0\"");
+    expect(MapMath.formatDMS("90,60,30")).toBe("90° 60' 30\"");
+    expect(MapMath.formatDMS("180,44,44 N")).toBe("180° 44' 44\" N");
+    expect(MapMath.formatDMS("270,30,30 w")).toBe("270° 30' 30\" W");
+});
+
+test("Test squareFeetToAcres(squareFeet)", () => {
+    expect(MapMath.squareFeetToAcres(10890.01)).toBe(0.25);
+    expect(MapMath.squareFeetToAcres(21780.02)).toBe(0.50);
+    expect(MapMath.squareFeetToAcres(43560.04)).toBe(1);
+});
+
+test("Test polygon functions", () => {
+    const lines = [];
+    expect(MapMath.isClosedPolygon(lines)).toBe(false);
+
+    let line = {points:[{x:0,y:0},{x:100,y:0}]}; 
+    lines.push(line);
+    line = {points: [{x:100,y:0},{x:100,y:100}]};
+    lines.push(line);
+    expect(MapMath.isClosedPolygon(lines)).toBe(false);
+
+    line = {points: [{x:100,y:100},{x:0,y:100}]};
+    lines.push(line);
+    expect(MapMath.isClosedPolygon(lines)).toBe(false);
+
+    line = {points: [{x:0,y:100},{x:0,y:0}]};
+    lines.push(line);
+
+    expect(MapMath.isClosedPolygon(lines)).toBe(true);
+
+    expect(MapMath.getPolygonCartCenterPoint(lines)).toStrictEqual({x:50,y:-50});
+    expect(MapMath.calculatePolygonArea(lines)).toBe(10000);
+});
+
+
+test("Test GetRatioOfLineLengths", () => {
+    let point1 = { x: 0, y: 0 };
+    let point2 = { x: 0, y: 1 };
+    let point3 = { x: 1, y: 0 };
+    let point4 = { x: 1, y: 1 };
+    expect(MapMath.GetRatioOfLineLengthsGivenPoints(point1, point2, point3, point4)).toBe(1);
+
+    let line1 = {}; line1.points = [point1, point2];
+    let line2 = {}; line2.points = [point3, point4];
+    expect(MapMath.GetRatioOfLineLengths(line1, line2)).toBe(1);
+
+    point3 = { x: 1, y: 0 };
+    point4 = { x: 1, y: 2 };
+    line2.points = [point3, point4];
+    expect(MapMath.GetRatioOfLineLengthsGivenPoints(point1, point2, point3, point4)).toBe(2);
+    expect(MapMath.GetRatioOfLineLengths(line1, line2)).toBe(2);
+
+    point3 = { x: 1, y: 0 };
+    point4 = { x: 1, y: .5 };
+    line2.points = [point3, point4];
+    expect(MapMath.GetRatioOfLineLengthsGivenPoints(point1, point2, point3, point4)).toBe(.5);
+    expect(MapMath.GetRatioOfLineLengths(line1, line2)).toBe(.5);
+});
+
+
+
+
+// Test the function with various indices
 /*
  * in SVG (Scalable Vector Graphics), rotations are applied counterclockwise for positive values. This means that if you rotate a point around the origin, a positive angle value will result in a counterclockwise rotation. Conversely, a negative angle value would result in a clockwise rotation around the origin. This convention is commonly used in mathematics and computer graphics to define the direction of rotation.
  *

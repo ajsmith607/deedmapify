@@ -1,0 +1,193 @@
+
+
+/* 
+ * variables can't be used in media queries
+ * so they are hard coded in the css,
+ * but kept in root to show the intended relationships
+ */
+
+:root {
+    --font-family: Roboto, sans-serif;
+    --font-size: 16px;
+    --mobile-font-size: calc( var(--font-size) * 0.80 ); 
+    --line-height-unitless: 1.5;
+    --line-height: calc( var(--line-height-unitless) * 1rem);
+    --line-length: 60;
+    --left-margin: 4%;
+    --max-width: calc( var(--line-length) * 1rem );  
+    --breakpoint: calc( var(--font-size) * var(--line-length) );
+    --breakpoint2: calc( var(--breakpoint) * 1.25 );
+    --background-color: white;
+    --background-color2: whitesmoke;
+    --color: black;
+    --active-link-color: black;
+    --visited-link-color: #808080;
+    --border-color:  black; 
+}
+
+*, *:before, *:after {
+    margin: 0;
+    padding: 0;
+    margin-bottom: var(--line-height);
+    box-sizing: border-box;
+}
+
+html, body {
+    background-color: var(--background-color);
+    color: var(--color);
+    font-family: var(--font-family);
+    font-size: var(--font-size);
+    line-height: var(--line-height-unitless); 
+
+}
+
+header, main, aside, footer {
+    margin: 0 auto 0 var(--left-margin);
+    padding: 0 calc( var(--line-height) / 2);
+    max-width: var(--max-width);
+}
+
+aside.toc { padding-bottom: calc( var(--line-height) * 1); }
+
+header, footer {
+    padding-top: calc( var(--line-height) * 1);
+}
+
+/* if this is overridden, styles will have to be duplicated to remain in effect */ 
+@media only screen and (max-width: 800px) {
+    html,body { font-size: var(--mobile-font-size); }
+}
+
+a, 
+nav a, 
+h1 a, h2 a, h3 a, h4 a, {
+    color: var(--active-link-color);
+}
+
+nav a, .copyright a, 
+h1 a, h2 a, h3 a, h4 a, {
+    text-decoration: none;
+}
+    
+a:hover, nav a:hover {
+    text-decoration: underline;
+}
+
+a:visited, nav a:visited .copyright a:visited {
+    color: var(--active-link-color);
+    text-decoration: none;
+}
+
+h2, h3 { font-weight: normal; }  
+h1 { 
+    font-size: 2.25rem; 
+    padding-top: calc( var(--line-height) * 1);
+}
+h2 { 
+    font-size: 1.75rem; 
+    padding-top: calc( var(--line-height) * 1);
+    margin-bottom: calc( var(--line-height) / 2);
+}
+h3, aside h1 { 
+    font-size: 1.25rem;
+    padding-top: var(--line-height);
+    margin-bottom: calc( var(--line-height) / 2);
+}
+h4 { 
+    font-size: 1rem; 
+    font-weight: bold;
+}
+
+ul, ol { padding-left: calc( var(--line-height) * 1.5 ) }
+ul > li > ul > li, ol > li > ol > li { margin-bottom:  calc( var(--line-height) * 0.5) } 
+
+hr {
+    width: 62%;
+    margin-left: 0px;
+    color: var(--border-color);
+}
+
+blockquote {
+    max-width: 100%; 
+    padding: var(--line-height) calc( var(--line-height) * 2);
+    background-color: var(--background-color2);
+}
+
+img, table, figure, svg, iframe, video {
+    max-width: 100%; 
+    vertical-align: middle; 
+    border: 0; 
+    -ms-interpolation-mode: bicubic;
+}
+img, table, figure, svg, video { height: auto; }
+
+figure { margin: calc( var(--line-height) * 2) 0}
+.cols figure.image { margin: calc( var(--line-height) * 1) 0}
+figure.table { padding-bottom: 0; }
+figure.image img { margin-bottom: 0; }
+figure blockquote, figcaption, figure footer, figure aside, main aside {
+    padding: 0 var(--line-height);
+    font-style: normal; 
+}
+figure footer, figure aside, main aside  { padding-top: 0; margin-left: 0 } /* resets style from top level footer */
+figure blockquote { padding: var(--line-height); }
+figcaption { margin: var(--line-height) 0;  }
+figcaption a.origversion { padding-left: calc( var(--line-height) * 0.5); }
+figure ul, figure ol { padding-left: calc( var(--line-height) * 1); }
+cite { font-style: normal; /* reset of default browser style */  }
+.quote-only { margin-bottom: calc( var(--line-height) * 2); }
+
+pre {
+    background-color: var(--background-color2);
+    padding: 0 0 calc( var(--line-height) * 1) calc( var(--line-height) * 1); 
+}
+
+.hero {
+    font-size: 4rem; 
+    padding-top: 1rem;
+    padding-bottom: 2rem;
+}
+
+.small, 
+table th, table td, tfoot, 
+figcaption, figure.image blockquote, figure footer, figure aside {
+    /*font-size: 0.90rem;*/ 
+    vertical-align: top;
+}
+
+table { 
+    width: 100%;
+    margin-top: calc( var(--line-height) * 1); 
+    border-collapse: collapse;
+    border-top: 1px solid var(--border-color); 
+    border-bottom: 1px solid var(--border-color); 
+}
+th { font-weight: bold; }
+th, td { 
+    line-height: var(--line-height);
+    padding: calc( var(--line-height) / 8); 
+    text-align: left;
+} 
+thead tr, tbody tr:nth-child(even) { background-color: var(--background-color2); }
+
+.meta { display: none; }
+.summary .content p { display: inline; } 
+.more-link { margin-left: calc( (var(--line-height) / 2); }
+.hidden { display: none !important; }
+
+.cols {
+    width: 100%;
+    display: flex;
+    flex-direction: row;
+    column-gap: var(--line-height); 
+    row-gap: 0;  
+    flex-basis: content;
+    flex-grow: 1;
+    flex-shrink: 1 ; 
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin: 0;
+    padding: 0;
+}
+

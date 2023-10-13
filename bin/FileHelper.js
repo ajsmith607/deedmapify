@@ -1,6 +1,16 @@
 const path = require("path");
 const fs = require("fs");
 
+function CopyFile(sourceFilePath, destinationFilePath) {
+    fs.copyFile(sourceFilePath, destinationFilePath, (err) => {
+        if (err) {
+            console.error('Error copying file:', err);
+        } else {
+            console.log('Image file copied successfully!');
+        }
+    });
+}
+
 function PrepareWriteDir (dir) {
     if (! fs.existsSync(dir)) { fs.mkdirSync(dir); }
     return;
@@ -58,7 +68,8 @@ function SaveJSON (json, file, dir="./") {
 
 
 module.exports = { 
-    GetFiles, DeleteFile,
+    PrepareWriteDir, 
+    CopyFile, GetFiles, DeleteFile,
     GetText, GetJSON,
     SaveText, SaveJSON,
 }
