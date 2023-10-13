@@ -102,25 +102,25 @@ function compileLineInfo (ThisLine, svgstart, svgendpoint) {
 
     console.log("in compilelineinfo: %j", ThisLine);
     // convert points to Cartesian coordinates for trig calcs
-    let cartbeginpoint = MapMath.SVGCoordstoCartCoords(svgstart);
+    let cartstartpoint = MapMath.SVGCoordstoCartCoords(svgstart);
     let cartendpoint = MapMath.SVGCoordstoCartCoords(svgendpoint);
-    let cartline = {points:[cartbeginpoint, cartendpoint]};
+    let cartline = {points:[cartstartpoint, cartendpoint]};
     
     // because lineangle below is derived from previously determined SVG coordinates 
     // that already accounted for both magdecl and additional rotation,
     // the linangle already reflects the magdecl adjustment, and so will the az derived from that lineangle
     // so, in the following calculations, set magdecl and rotation = 0 for consistency
     let magdecl = 0; let rotate = 0;
-    ThisLine.lineangle = MapMath.GetAngleFromPoints(cartbeginpoint.x, cartbeginpoint.y, cartendpoint.x, cartendpoint.y);;
+    ThisLine.lineangle = MapMath.GetAngleFromPoints(cartstartpoint.x, cartstartpoint.y, cartendpoint.x, cartendpoint.y);;
     console.log("in compilelineinfo lineangle: %s", ThisLine.lineangle);
     let az = MapMath.SVGtoAzimuth(ThisLine.lineangle);
     console.log("in compilelineinfo az: %s", az);
     ThisLine = MapMath.GetAllBearingInfo("a " + az + " z", magdecl, rotate, ThisLine);
     
-    let dist = MapMath.GetDistanceFromPoints(cartbeginpoint.x, cartbeginpoint.y, cartendpoint.x, cartendpoint.y);
+    let dist = MapMath.GetDistanceFromPoints(cartstartpoint.x, cartstartpoint.y, cartendpoint.x, cartendpoint.y);
     ThisLine = MapMath.GetAllDistanceInfo(dist + " feet", ThisLine);
 
-    let midpoint = MapMath.GetEndPoint(cartbeginpoint.x, cartbeginpoint.y, ThisLine.lineangle, dist/2);
+    let midpoint = MapMath.GetEndPoint(cartstartpoint.x, cartstartpoint.y, ThisLine.lineangle, dist/2);
     ThisLine.points[2] = MapMath.CartCoordstoSVGCoords(midpoint);
     return ThisLine;
 }
@@ -128,25 +128,36 @@ function compileLineInfo (ThisLine, svgstart, svgendpoint) {
 
 // "connect 4 3 2 5 1 ",
 // - connect 6 3 2 1 2 rect-test
-function ConnectSteps (LayerState, Instruction, AllCompiledLayersMap) {
-    let [thisstepnum, stepnum1, pointnum1, stepnum2, pointnum2, layerid] = splitwords(Instruction);
+/*function ConnectSteps (LayerState, Instruction, AllCompiledLayersMap) {
+    let [thisstepnum, stepnum1, pointnum1, stepnum2, pointnum2] = splitwords(Instruction);
 
     let step1index = parseInt(stepnum1) - 1; let point1index = parseInt(pointnum1) - 1; 
     let step2index = parseInt(stepnum2) - 1; let point2index = parseInt(pointnum2) - 1;
-    let svgbeginpoint = LayerState.steps[step1index].points[point1index];
+
+    let svgstartpoint = LayerState.steps[step1index].points[point1index];
     let svgendpoint = LayerState?.steps[step2index]?.points[point2index];
-    if (layerid) {
-        let prevlayer = AllCompiledLayersMap.get(layerid);
-        if (prevlayer) {
-            svgendpoint = prevlayer?.steps[step2index]?.points[point2index];
-            svgendpoint = MapMath.MoveAndRotatePoint(svgendpoint.x, svgendpoint.y, prevlayer.xoffset, prevlayer.yoffset, prevlayer.rotate);
-        }
-    } 
     
     thisstepnum = parseInt(thisstepnum);
     let thisstepindex = thisstepnum - 1;
     let ThisStep = createNewLine(thisstepnum, Instruction); 
-    ThisStep = compileLineInfo(ThisStep, svgbeginpoint, svgendpoint);
+    ThisStep = compileLineInfo(ThisStep, svgstartpoint, svgendpoint);
+    LayerState.steps[thisstepindex] = ThisStep;
+    LayerState.currx = svgendpoint.x;
+    LayerState.curry = svgendpoint.y;
+    return LayerState;
+}
+*/
+
+function ConnectSteps (LayerState, Instruction, AllCompiledLayersMap) {
+    let [thisstepnum, point1id, point2id] = splitwords(Instruction);
+
+    let svgstartpoint = getLayerPointCoords(LayerState, point1id); 
+    let svgendpoint = getLayerPointCoords(LayerState, point2id);
+    
+    thisstepnum = parseInt(thisstepnum);
+    let thisstepindex = thisstepnum - 1;
+    let ThisStep = createNewLine(thisstepnum, Instruction); 
+    ThisStep = compileLineInfo(ThisStep, svgstartpoint, svgendpoint);
     LayerState.steps[thisstepindex] = ThisStep;
     LayerState.currx = svgendpoint.x;
     LayerState.curry = svgendpoint.y;
@@ -154,29 +165,10 @@ function ConnectSteps (LayerState, Instruction, AllCompiledLayersMap) {
 }
 
 function Reset (LayerState, Instruction, AllCompiledLayersMap) {
-    // remember to reset curry back to Cartesian coordinates for the next step
-    let [stepnum, pointnum, layerid] = splitwords(Instruction);
-    stepnum = parseInt(stepnum); 
-    pointnum = parseInt(pointnum);
-    if (layerid) {
-        console.log("  *** Layer ID referenced: %s", layerid);
-        let prevlayer = AllCompiledLayersMap.get(layerid);
-        if (prevlayer) {
-            let tempx = prevlayer.steps[stepnum - 1].points[pointnum - 1].x;
-            let tempy = prevlayer.steps[stepnum - 1].points[pointnum - 1].y;
-            //let temprotate = prevlayer.rotate + prevlayer.magdecl; 
-            let temprotate = prevlayer.rotate;
-            ({tempx, tempy} = MapMath.MoveAndRotatePoint(tempx, tempy, prevlayer.xoffset, prevlayer.yoffset, prevlayer.rotate));
-            LayerState.currx = tempx; 
-            LayerState.curry = tempy; 
-        }
-    } else {
-        console.log("NO LAYER ID FOR RESET");
-        console.log("step points to be copied in layer: %j", LayerState);
-        LayerState.currx = LayerState.steps[stepnum - 1].points[pointnum - 1].x;
-        LayerState.curry = LayerState.steps[stepnum - 1].points[pointnum - 1].y;
-        console.log("NOW: currx: %s, curry: %s", LayerState.currx, LayerState.curry);
-    }
+    let pointid = Instruction;
+    let newpoint = getLayerPointCoords(LayerState, pointid);
+    LayerState.currx = newpoint.x; 
+    LayerState.curry = newpoint.y;
     return LayerState;
 }
 
@@ -342,7 +334,7 @@ function AddRuleToPoint(LayerState, Instruction) {
     return LayerState;
 }
 
-function AddRuleToLine(LayerState, Instruction) {
+function AddRuleToStep(LayerState, Instruction) {
     let [rulenum, stepnum, linedist, linedistunit, rulelength, rulelengthunit, relruleangle] = splitwords(Instruction);
     rulenum = parseInt(rulenum);
     stepnum = parseInt(stepnum);
@@ -431,7 +423,7 @@ function AddRule(LayerState, Instruction) {
  */
 //function GetAllDistanceInfo (distances, line={}) {
 // the structure of rules mirrors that of steps
-// - addruletoline 1 1 0 feet 200 feet
+// - addruletostep 1 1 0 feet 200 feet
 
 
 /*      let step = LayerState.steps[ref1 - 1];
@@ -685,7 +677,13 @@ function getCompiledLayerbyID(layerid, LayerState, AllCompiledLayersMap) {
     return AllCompiledLayersMap.get(layerid);
 }
 
-function getLayerPointCoords(layer, pointid) {
+function scalepoint(point, scale) {
+    point.x = point.x * scale; 
+    point.y = point.y * scale;
+    return point;
+}
+
+function getLayerPointCoords(layer, pointid, layerid="<this>") {
     let [x,y] = [0,0];
     if (layer) {
         console.log("");
@@ -711,7 +709,11 @@ function getLayerPointCoords(layer, pointid) {
         }
     }
     console.log("before adjusting x: %s, y: %s", x, y);
-    let finalpoint = MapMath.MoveAndRotatePoint(x, y, layer.xoffset, layer.yoffset, layer.rotate);
+    let finalpoint = {x, y};
+    if (layerid != "<this>" && layerid != layer.id) {
+        finalpoint = MapMath.MoveAndRotatePoint(finalpoint.x, finalpoint.y, layer.xoffset, layer.yoffset, layer.rotate);
+        finalpoint = scalepoint(finalpoint, layer.scale); 
+    }
     x = finalpoint.x; y = finalpoint.y;
 
     console.log("final x: %s, y: %s", x, y);
@@ -719,34 +721,15 @@ function getLayerPointCoords(layer, pointid) {
 }
 
 
-
-// TODO: finish implementing, use new methods
-// function getCompiledLayerbyID(layerid, LayerState, AllCompiledLayersMap) {
-// function getLayerPointCoords(layer, pointid) {
 function ConnectPointsWithRule(LayerState, Instruction, AllCompiledLayersMap) {
-    function scalepoint(point, scale) {
-        point.x = point.x * scale; 
-        point.y = point.y * scale;
-        return point;
-    }
-
     [rulenum, layer1id, point1id, layer2id, point2id] = splitwords(Instruction);
 
     let ThisRule = createNewLine(rulenum, Instruction);
     let layer1 = getCompiledLayerbyID(layer1id, LayerState, AllCompiledLayersMap); 
     let layer2 = getCompiledLayerbyID(layer2id, LayerState, AllCompiledLayersMap); 
     
-    let svgpoint1 = getLayerPointCoords(layer1, point1id);
-    if (! layer1id == "<this>") { 
-        svgpoint1 = MapMath.MoveAndRotatePoint(svgpoint1.x, svgpoint1.y, layer1.xoffset, layer1.yoffset, layer1.rotate);
-        svgpoint1 = scalepoint(svgpoint1, layer1.scale); 
-    }
-
-    let svgpoint2 = getLayerPointCoords(layer2, point2id);
-    if (! layer2id == "<this>") { 
-        svgpoint2 = MapMath.MoveAndRotatePoint(svgpoint2.x, svgpoint2.y, layer2.xoffset, layer2.yoffset, layer2.rotate);
-        svgpoint2 = scalepoint(svgpoint2, layer2.scale); 
-    }
+    let svgpoint1 = getLayerPointCoords(layer1, point1id, layer1id);
+    let svgpoint2 = getLayerPointCoords(layer2, point2id, layer2id);
 
     ThisRule = compileLineInfo(ThisRule, svgpoint1, svgpoint2);
     let ruleindex = parseInt(rulenum) -1;
@@ -804,8 +787,8 @@ function ExecuteInstructions(LayerState, AllCompiledLayersMap) {
                 break;
 
             // RULES
-            case "addruletoline":
-                LayerState = AddRuleToLine(LayerState, Instruction);
+            case "addruletostep":
+                LayerState = AddRuleToStep(LayerState, Instruction);
                 break;
             case "addruletopoint":
                 LayerState = AddRuleToPoint(LayerState, Instruction);

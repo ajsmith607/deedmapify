@@ -52,30 +52,27 @@ Known Bugs
 Future Enhancements
 ====================
 
-- [ ] add "chainlinks" as input and output format, test 
-- [ ] test: notes, citations, and instructions append to list
-- [ ] chainlinks as a unit 
+- [ ] right angles not always detected as expected, need to reconsider default tolerance?
+- [ ] add "chainlinks" as input and output format, test, or is this/should this be covered by "chains" methods? 
 - [ ] splitwords should use one **or more** spaces as delimiters for more robust parsing
-- [ ] copy point method? 
+- [ ] make splitwords more robust with more sophisticated handling of quotes?
+- [ ] test: notes, citations, and instructions append to list
 - [ ] global config
     - [ ] implement template files 
     - [ ] specify output, images, template dir, etc? 
     - [ ] display flags? files/layers append or override? (default overrides, add addflags param at file level to append or use +flag -flag notation?)
-    
 - [ ] geocode physical addresses
 - [ ] lookup magnetic declination for lat/lon/date
 - [ ] cache results
-
-
 - [ ] PDF output
 
 Infrastructure Enhancements
 ========================
 
+- [x] clean up unused image files in maps/images
 - [ ] likely "compile" code in SVGHelper that more logically belongs in the MapLayer package
 - [ ] factor out general utility functions from MapMath package
 - [ ] integrate Winston logging, clean up logging messages
 - [ ] validate yaml, give feedback      
 - [ ] more robust error checking/validation in general
 - [ ] consider using TypeScript on MapMath package
-- [x] clean up unused image files in maps/images
