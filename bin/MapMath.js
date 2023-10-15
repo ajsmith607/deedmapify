@@ -280,15 +280,6 @@ function GetAllBearingInfo(bearing, magdecl=0, rotate=0, line={}) {
         line.az = rounddown(normalizedegrees(BearingtoAzimuth(bearing) + magdecl)); 
     }
     line.bearing = AzimuthtoBearing(line.az); 
-    console.log("line.az: %s, rotate: %s", line.az, rotate);
-console.log("normalized az: %s", normalizedegrees(line.az));
-console.log("90 - az: %s", 90 - line.az);
-console.log("normalized 90 - az: %s", normalizedegrees(90 - line.az));
-//function AzimuthtoSVG (azimuth) { return normalizedegrees(90 - normalizedegrees(azimuth)); }
-    console.log("az to svg: %s", AzimuthtoSVG(line.az + rotate));
-    console.log("normalized: %s", normalizedegrees(AzimuthtoSVG(line.az + rotate)));
-    console.log("rounded: %s", rounddown(normalizedegrees(AzimuthtoSVG(line.az + rotate))));
-
     line.lineangle = AzimuthtoSVG(line.az + rotate);
     console.log(" !!!!! line.az: %s, line.bearing: %s, line.lineangle: %s", line.az, line.bearing, line.lineangle); 
 
@@ -655,6 +646,9 @@ function GetRightAnglePoints(line1, line2, intersectionpoint, space) {
 
 // this function, unlike most others, is meant to take SVG coordinates
 function MoveAndRotatePoint(x, y, xoffset=0, yoffset=0, rotatedegrees=0) {
+    x = parseFloat(x); y = parseFloat(y);
+    xoffset = parseFloat(xoffset); yoffset = parseFloat(yoffset);
+    rotatedegrees = parseFloat(rotatedegrees);
 
     let [rotx, roty] = [x,y];
     if (rotatedegrees) {
@@ -668,8 +662,8 @@ function MoveAndRotatePoint(x, y, xoffset=0, yoffset=0, rotatedegrees=0) {
         roty = adjpoint.y;
     }
 
-    x = rotx + parseFloat(xoffset);
-    y = roty + parseFloat(yoffset);
+    x = rotx + xoffset;
+    y = roty + yoffset;
 
     // normalize any -0 values
     if (Math.abs(x) === 0) { x = 0; }

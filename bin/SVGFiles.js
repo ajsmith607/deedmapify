@@ -273,8 +273,9 @@ function extractLinesAndPaths(FileLayersMap) {
             for (let p=0; p < thislayer.steps[s].points.length; p++) {
                 let x = thislayer.steps[s].points[p].x;
                 let y = thislayer.steps[s].points[p].y;
-                ({x, y} = MapMath.MoveAndRotatePoint(x, y, thislayer.xoffset, thislayer.yoffset, 0));
-                line.points[p] = { x: x, y: y };
+                //({x, y} = MapMath.MoveAndRotatePoint(x, y, thislayer.xoffset, thislayer.yoffset, 0));
+                //line.points[p] = { x: x, y: y };
+                line.points[p] = MapMath.MoveAndRotatePoint(x, y, thislayer.xoffset, thislayer.yoffset, 0);
             }
             AllLines.push(line);
             console.log("    line extracted: %j", line);
@@ -406,6 +407,7 @@ function getLayerCopybyID(layerid, FileLayersMap, CompiledLayerMap) {
     return null;
 }
 
+
 function setRelativeLayerOffsets (layer1, alignpoint1, layer2, alignpoint2) {
     // force both layers to be at scale1 for calculations to be consistent
     let scale1 = parseFloat(layer1.scale);
@@ -475,6 +477,119 @@ function AlignLayerPointsAndScale (FileLayersMap, Instruction, CompiledLayerMap)
 }
 
 
+
+function moverotatescalepoint(layer, point, printscale=1) {
+    printscale = parseFloat(printscale);
+    console.log("");
+    console.log("!!!!!! layer id: %s", layer.id);
+    scale = parseFloat(layer.scale) / printscale || 1;
+    console.log("layer scale: %s, printscale: %s, initial x: %s, initial y: %s", layer.scale, printscale, point.x, point.y);
+    let x = parseFloat(point.x) * scale;
+    let y = parseFloat(point.y) * scale;
+    console.log("scaled x: %s, scaled y: %s", x, y);
+    console.log("layer xoffset: %s, layer yoffset: %s", layer.xoffset, layer.yoffset);
+    let xoffset = parseFloat(layer.xoffset) * scale;
+    let yoffset = parseFloat(layer.yoffset) * scale;
+    console.log("scaled xoffset: %s, scaled yoffset: %s", xoffset, yoffset);
+    let rotpoint = MapMath.MoveAndRotatePoint(x, y, xoffset, yoffset, layer.rotate);
+    console.log("final x: %s, final y: %s", rotpoint.x, rotpoint.y);
+    point.x = rotpoint.x; point.y = rotpoint.y;
+    return point;
+}
+
+function compileRules(LayerState, FileLayersMap, printscale=1) {
+    printscale = parseFloat(printscale);
+    // invert existing scale layer (1 by default) to get back to consistent scale 1
+    let AllRules = [];
+    if (LayerState.rules && LayerState.rules.length) {
+        for (let i=0; i < LayerState.rules.length; i++) {
+
+            let thisrule = LayerState.rules[i];
+
+            // scale the point relative to the appropriate layer 
+            let startpoint = thisrule.points[0];
+            let startpointlayer = LayerState;
+            if (startpoint.layerid && startpoint.layerid != LayerState.id) { 
+                startpointlayer = FileLayersMap.get(startpoint.layerid); 
+                if (startpointlayer) { startpoint = moverotatescalepoint(startpointlayer, startpoint, printscale); } 
+            } 
+
+            let endpoint = thisrule.points[1];
+            console.log("endpoint before : %o", endpoint);
+            let endpointlayer = LayerState;
+            console.log("endpoint.layerid: %s, LayerState.id: %s", endpoint.layerid, LayerState.id);
+            if (endpoint.layerid && endpoint.layerid != LayerState.id) { 
+                console.log("going into another layer");
+                endpointlayer = FileLayersMap.get(endpoint.layerid);
+                if (endpointlayer) { endpoint = moverotatescalepoint(endpointlayer, endpoint, printscale); }
+            }
+            console.log("endpoint after: %o", endpoint);
+            // endpoint.scale = endpointlayer.scale;
+
+            // need to make sure that distances, bearings and labels are adjusted with updated layer information
+            let cartstartpoint = MapMath.SVGCoordstoCartCoords(startpoint);
+            let cartendpoint = MapMath.SVGCoordstoCartCoords(endpoint);
+
+            // (I think) startpoint and endpoint should now both be at the same scale, drawing scale == 1
+            let dist = MapMath.GetDistanceFromPoints(cartstartpoint.x, cartstartpoint.y, cartendpoint.x, cartendpoint.y);
+            thisrule = MapMath.GetAllDistanceInfo(dist + " feet", thisrule);
+
+            let angle = MapMath.GetAngleFromPoints(cartstartpoint.x, cartstartpoint.y, cartendpoint.x, cartendpoint.y);
+            let az = MapMath.AzimuthtoSVG(angle);
+            thisrule = MapMath.GetAllBearingInfo("a " + az + " z", 0, 0, thisrule);
+
+            thisrule = MapLayers.SetLineLabel(thisrule);
+
+            // get midpoint
+            let midpoint = MapMath.GetEndPoint(cartstartpoint.x, cartstartpoint.y, angle,  dist/2);
+            midpoint = MapMath.CartCoordstoSVGCoords(midpoint);
+            thisrule.points[2] = midpoint;
+
+            let rulewidth = LayerState.linewidth / 2;
+            let dashlen = rulewidth * 2;
+            let dasharray = dashlen + "," + dashlen; 
+
+            let pathelement = SVGHelper.CreateRulePathElement(startpoint.x, startpoint.y, endpoint.x, endpoint.y, rulewidth, dasharray);
+            pathelement.attributes["stroke"] = LayerState.color;
+            AllRules.push(pathelement);
+
+            let xlabeloffset = thisrule.dx || 0;
+            let ylabeloffset = thisrule.dy || 2;
+
+            let lineangle = parseFloat(thisrule.lineangle);
+            let textangle = -lineangle; 
+            if (lineangle > 90 && lineangle < 270) { textangle = MapMath.GetBackAngle(textangle); }
+            let textelement = SVGHelper.CreateTextElement(thisrule.label, midpoint.x, midpoint.y, xlabeloffset, ylabeloffset, textangle, LayerState.fontsize); 
+            textelement.attributes["fill"] = LayerState.color; 
+            AllRules.push(textelement);
+        } 
+    }
+    return AllRules;
+}
+
+/*
+function setRelativeLayerOffsets (layer1, alignpoint1, layer2, alignpoint2) {
+    // force both layers to be at scale1 for calculations to be consistent
+    let scale1 = parseFloat(layer1.scale);
+    let scale2 = parseFloat(layer2.scale);
+    
+    let p1x = parseFloat(alignpoint1.x); p1x = p1x * scale1; 
+    let p1y = parseFloat(alignpoint1.y); p1y = p1y * scale1;
+    let p2x = parseFloat(alignpoint2.x); p2x = p2x * scale2;
+    let p2y = parseFloat(alignpoint2.y); p2y = p2y * scale2;
+    
+    // convert back to existing layer scale to allow value on group to be used instead
+    let xdiff = MapMath.rounddown((p2x - p1x) * 1/scale1);
+    let ydiff = MapMath.rounddown((p2y - p1y) * 1/scale1);
+
+    layer1.xoffset = parseFloat(layer1.xoffset) + xdiff;
+    layer1.yoffset = parseFloat(layer1.yoffset) + ydiff;
+
+    return layer1;
+}
+*/
+
+
 function transformGroup(groupsvg, scale) {
     let transform = `scale(${scale}) rotate(${groupsvg.rotate}) translate(${groupsvg.xoffset} ${groupsvg.yoffset})`;
     groupsvg.attributes.transform = transform;
@@ -487,7 +602,7 @@ function setLayerScale(LayerState, scale=1) {
     console.log("Got scale: %s", scale);
     console.log("LayerState.id: %s, LayerState.scale: %s", LayerState.id, LayerState.scale);
     console.log("LayerState.xoffset: %s, LayerState.yoffset: %s", LayerState.xoffset, LayerState.yoffset);
-    scale = parseFloat(LayerState.scale) * parseFloat(scale);
+    scale = MapMath.rounddown(parseFloat(LayerState.scale) * parseFloat(scale));
     LayerState.scale = scale;
     LayerState.svg = transformGroup(LayerState.svg, scale);
     console.log("Scale set: %s", scale);
@@ -715,21 +830,33 @@ exports.GenerateAllSVGFiles = function (ConfigFile="./maps.yaml", outputdir="./m
         [finalwidthinches, finalheightinches] = GetPrintDimensions(finalwidthinches, finalheightinches, margininches);
         let scale = GetPrintScale(BaseLayer, finalwidthinches, finalheightinches, margininches, printdpi);
        
-        BaseLayer.scale = scale; // want to make calculations but not trigger setting scale at group layer 
+        // want to make calculations but not trigger setting scale at group layer 
+        // only the group layer children of BaseLayer are scaled in the SVG output 
+        BaseLayer.scale = scale;
         BaseLayer = SVGHelper.ScaleElementsBoundingBox(BaseLayer);
 
 
+        let rulesaccum = [];
         // place collected images under/before already added drawn layers
         if (imagelayeraccum && imagelayeraccum.length > 0) {
             let imagesgroup = SVGHelper.CreateGroupElement("images");
             for (let c=0; c < imagelayeraccum.length; c++) {
+                //console.log("image layerid: %s, starting scale: %s", imagelayeraccum[c].id, imagelayeraccum[c].scale);
                 if (! drawinglayersaccum || drawinglayersaccum.length == 0) {
                     // if there are no drawings, force images to scale 1 so
                     // images will be optimized for print scale later
                     imagelayeraccum[c].scale = 1;
                 }
+
+                imagelayeraccum[c].svg.children.push(compileRules(imagelayeraccum[c], FileLayersMap, scale));
+                console.log("**** image layer id: %s, starting scale: %s", imagelayeraccum[c].id, imagelayeraccum[c].scale);
                 imagelayeraccum[c] = setLayerScale(imagelayeraccum[c], scale);
+                FileLayersMap.set(imagelayeraccum[c].id, imagelayeraccum[c]);
                 imagesgroup.children.push(imagelayeraccum[c].svg);
+
+                // add any image layer rules, point coords will already be scaled correctly, so add to unscaled BaseLayer        
+                // if (rules && rules.length > 0) { rulesaccum = rulesaccum.concat(rules); }
+
             }
             BaseLayer.svg.children.push(imagesgroup); 
         }
@@ -762,10 +889,14 @@ exports.GenerateAllSVGFiles = function (ConfigFile="./maps.yaml", outputdir="./m
 
         // add drawn layers on top
         for (let l=0; l < drawinglayersaccum.length; l++) {
-            let thislayer = drawinglayersaccum[l];
-            thislayer = setLayerScale(thislayer, scale);
-            BaseLayer.svg.children.push(thislayer.svg); 
+            drawinglayersaccum[l].svg.children.push(compileRules(drawinglayersaccum[l], FileLayersMap, scale));
+            drawinglayersaccum[l] = setLayerScale(drawinglayersaccum[l], scale);
+            //if (rules && rules.length > 0) { rulesaccum = rulesaccum.concat(rules); }
+            BaseLayer.svg.children.push(drawinglayersaccum[l].svg); 
         }
+
+        // add all rules accumulated from image and drawing layers
+        //if (rulesaccum && rulesaccum.length > 0) { BaseLayer.svg.children.push(rulesaccum); }
 
         // add legend
         let legendpadding = BaseLayer.fontsize * 10 ; 
@@ -779,6 +910,7 @@ exports.GenerateAllSVGFiles = function (ConfigFile="./maps.yaml", outputdir="./m
 
         let width = MapMath.rounddown(BaseLayer.maxx - BaseLayer.minx);
         let height = MapMath.rounddown(BaseLayer.maxy - BaseLayer.miny);
+        BaseLayer.minx = MapMath.rounddown(BaseLayer.minx); BaseLayer.miny = MapMath.rounddown(BaseLayer.miny);
         BaseLayer.svg.children.unshift(AddBackgroundColor(width, height, BaseLayer.minx, BaseLayer.miny, FileConfig.backcolor));
 
         // compile final SVG 

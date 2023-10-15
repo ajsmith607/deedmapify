@@ -565,8 +565,8 @@ console.log(i);
         }
     }
 
-    let rules = compileRules(LayerState);
-    if (rules && rules.length > 0) { layergroup.children.push(rules); }
+    //let rules = compileRules(LayerState);
+    // if (rules && rules.length > 0) { layergroup.children.push(rules); }
     let points = compilePoints(LayerState);
     if (points && points.length > 0) { layergroup.children.push(points); }
 
@@ -710,33 +710,6 @@ function DetectAndDrawRightAngles (LayerState, currstepindex, circlesize) {
 */
 
 
-//     let [rulenum, stepnum, linedist, linedistunit, rulelength, rulelengthunit, angletoline, lineoffset ] = splitwords(Instruction);
-function compileRules(LayerState) {
-    let AllRules = [];
-    if (LayerState.rules && LayerState.rules.length) {
-        for (let i=0; i < LayerState.rules.length; i++) {
-
-            let thisrule = LayerState.rules[i];
-            let startpoint = thisrule.points[0];
-            let endpoint = thisrule.points[1];
-            let midpoint = thisrule.points[2];
-
-            let rulewidth = LayerState.linewidth / 2;
-            let dashlen = rulewidth * 2;
-            let dasharray = dashlen + "," + dashlen; 
-
-            AllRules.push(CreateRulePathElement(startpoint.x, startpoint.y, endpoint.x, endpoint.y, rulewidth, dasharray));
-            let xlabeloffset = thisrule.dx || 0;
-            let ylabeloffset = thisrule.dy || 2;
-
-            let lineangle = parseFloat(thisrule.lineangle);
-            let textangle = -lineangle; 
-            if (lineangle > 90 && lineangle < 270) { textangle = MapMath.GetBackAngle(textangle); }
-            AllRules.push(CreateTextElement(thisrule.label, midpoint.x, midpoint.y, xlabeloffset, ylabeloffset, textangle, LayerState.fontsize)); 
-        } 
-    }
-    return AllRules;
-}
 
 function compilePoints(LayerState) {
     let pointssvg = [];
@@ -751,6 +724,11 @@ function compilePoints(LayerState) {
             console.log("POINT INFO: x: %s, y: %s, r: %s", x, y, r);
             pointssvg.push(CreateCircleElement(x,y,r));     
             if (label) {
+                if (LayerState.displayflags.includes("showpointcoords")) { 
+                    let iy = y;
+                    if (iy != 0) { iy = -iy; } // inverted Y axis
+                    label = label + "(" + x + "," + iy + ")"; 
+                }
                 let textlabel = CreateTextElement(label, x, y, dx, dy, 0);     
                 textlabel.attributes["text-anchor"] = "start";
                 pointssvg.push(textlabel);
@@ -774,6 +752,7 @@ module.exports = {
     CreateTextElement,
     CreateCircleElement,
     CreatePathElement, 
+    CreateRulePathElement,
     GenerateSVG,
     GetElementsBoundingBox, 
     ScaleElementsBoundingBox, 
